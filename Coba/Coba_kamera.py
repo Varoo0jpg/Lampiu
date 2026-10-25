@@ -410,18 +410,81 @@ class TrafficGUI(ctk.CTk):
 
     def bangun_grid_simulasi_kanan(self):
         """Membangun penempatan layout grid 4 kamera dan grafik suara."""
-        # --- KOLOM 1: WADAH GRAFIK ANALISIS (FRAME POLOS) ---
+        # --- KOLOM 1: AUDIO CONFIDENCE & AREA GRAFIK ---
         f_suara1 = ctk.CTkFrame(self, fg_color=HEX_DARK_BG, border_width=1)
         f_suara1.grid(row=0, column=1, sticky="nsew", padx=4, pady=4)
-        ctk.CTkLabel(f_suara1, text="[ Frame Data Suara 1 ]\n(Spectrogram Audio)", text_color="#5dade2").pack(expand=True)
+
+        ctk.CTkLabel(
+            f_suara1,
+            text="AUDIO CONFIDENCE",
+            font=("Arial", 12, "bold"),
+            text_color="#5dade2",
+        ).pack(pady=(8, 1))
+        ctk.CTkLabel(
+            f_suara1,
+            text="Probabilitas sirene per simpang",
+            font=("Arial", 9),
+            text_color="#aab7c4",
+        ).pack(pady=(0, 4))
+
+        # Nilai dimulai sebagai None. Persentase baru muncul setelah modul audio
+        # mengirim hasil agar GUI tidak menampilkan angka confidence palsu.
+        self.audio_confidence_values = {l: None for l in DAFTAR_LAJUR}
+        self.audio_confidence_widgets = {}
+        for lajur in DAFTAR_LAJUR:
+            baris = ctk.CTkFrame(f_suara1, fg_color="transparent")
+            baris.pack(fill="x", padx=10, pady=3)
+
+            ctk.CTkLabel(
+                baris,
+                text=lajur,
+                width=52,
+                anchor="w",
+                font=("Arial", 10),
+            ).pack(side="left")
+
+            progress = ctk.CTkProgressBar(
+                baris,
+                height=10,
+                progress_color="#3498db",
+            )
+            progress.pack(side="left", fill="x", expand=True, padx=(4, 6))
+            progress.set(0)
+
+            persen = ctk.CTkLabel(
+                baris,
+                text="--%",
+                width=38,
+                anchor="e",
+                font=("Arial", 10, "bold"),
+            )
+            persen.pack(side="right")
+
+            self.audio_confidence_widgets[lajur] = {
+                "progress": progress,
+                "persen": persen,
+            }
+
+        self.lbl_status_audio = ctk.CTkLabel(
+            f_suara1,
+            text="Menunggu input audio",
+            font=("Arial", 9),
+            text_color="#aab7c4",
+        )
+        self.lbl_status_audio.pack(pady=(2, 7))
 
         f_akustik1 = ctk.CTkFrame(self, fg_color="#151a21")
         f_akustik1.grid(row=1, column=1, sticky="nsew", padx=4, pady=4)
         ctk.CTkLabel(f_akustik1, text="Data Akustik 1", text_color="gray").pack(expand=True)
 
+        # Area ini disiapkan untuk grafik yang dikembangkan terpisah.
         f_suara2 = ctk.CTkFrame(self, fg_color=HEX_DARK_BG, border_width=1)
         f_suara2.grid(row=2, column=1, sticky="nsew", padx=4, pady=4)
-        ctk.CTkLabel(f_suara2, text="[ Frame Data Suara 2 ]\n(Spectrogram Audio)", text_color="#5dade2").pack(expand=True)
+        ctk.CTkLabel(
+            f_suara2,
+            text="[ Area Grafik Analisis ]\n(Dikembangkan terpisah)",
+            text_color="#5dade2",
+        ).pack(expand=True)
 
         f_akustik2 = ctk.CTkFrame(self, fg_color="#151a21")
         f_akustik2.grid(row=3, column=1, sticky="nsew", padx=4, pady=4)
@@ -469,6 +532,64 @@ class TrafficGUI(ctk.CTk):
         lbl.pack(expand=True)
         self.kotak_kamera[nama] = f      # [BARU]
         self.label_kamera[nama] = lbl    # [BARU]
+
+    # -----------------------------------------------------------
+    # PEMBARUAN AUDIO CONFIDENCE
+    # -----------------------------------------------------------
+    def perbarui_confidence_audio(self, hasil):
+        """
+        Memperbarui panel audio confidence dari hasil modul deteksi sirene.
+
+        Args:
+            hasil: dictionary dengan nama lajur dan probabilitas 0.0 sampai 1.0.
+                   Gunakan None jika audio untuk lajur tersebut belum tersedia.
+        Panggil metode ini pada thread GUI/Tkinter.
+        """
+        if not isinstance(hasil, dict):
+            raise TypeError("hasil audio harus berupa dictionary per lajur")
+
+        tersedia = []
+        for lajur in DAFTAR_LAJUR:
+            nilai = hasil.get(lajur)
+            widget = self.audio_confidence_widgets[lajur]
+
+            if nilai is None:
+                self.audio_confidence_values[lajur] = None
+                widget["progress"].set(0)
+                widget["persen"].configure(text="--%", text_color="#aab7c4")
+                continue
+
+            try:
+                confidence = float(nilai)
+            except (TypeError, ValueError):
+                raise ValueError(
+                    f"Confidence audio untuk lajur {lajur} harus berupa angka 0.0 sampai 1.0 atau None"
+                )
+
+            if not 0.0 <= confidence <= 1.0:
+                raise ValueError(
+                    f"Confidence audio untuk lajur {lajur} di luar rentang 0.0 sampai 1.0"
+                )
+
+            self.audio_confidence_values[lajur] = confidence
+            widget["progress"].set(confidence)
+            widget["persen"].configure(
+                text=f"{confidence * 100:.0f}%",
+                text_color="#ffffff",
+            )
+            tersedia.append((lajur, confidence))
+
+        if not tersedia:
+            self.lbl_status_audio.configure(
+                text="Menunggu input audio",
+                text_color="#aab7c4",
+            )
+        else:
+            lajur_tertinggi, skor_tertinggi = max(tersedia, key=lambda item: item[1])
+            self.lbl_status_audio.configure(
+                text=f"Sinyal tertinggi: {lajur_tertinggi} ({skor_tertinggi * 100:.0f}%)",
+                text_color="#5dade2",
+            )
 
     # -----------------------------------------------------------
     # [BARU] INTEGRASI KAMERA
