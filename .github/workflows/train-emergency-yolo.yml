@@ -54,11 +54,15 @@ jobs:
           python -m pip install ultralytics
 
       - name: Train YOLO on emergency dataset
+        env:
+          TRAIN_EPOCHS: ${{ inputs.epochs || '50' }}
+          TRAIN_IMGSZ: ${{ inputs.imgsz || '640' }}
+          TRAIN_BATCH: ${{ inputs.batch || '8' }}
         run: |
           python train_emergency_yolo.py \
-            --epochs "${{ inputs.epochs }}" \
-            --imgsz "${{ inputs.imgsz }}" \
-            --batch "${{ inputs.batch }}" \
+            --epochs "$TRAIN_EPOCHS" \
+            --imgsz "$TRAIN_IMGSZ" \
+            --batch "$TRAIN_BATCH" \
             --workers 2 \
             --device cpu
 
