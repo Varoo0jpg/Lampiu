@@ -43,7 +43,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: pip
+
+      - name: Validate Python syntax
+        run: |
+          python -m py_compile train_emergency_yolo.py Coba/Coba_kamera.py
 
       - name: Install training dependencies
         run: |
