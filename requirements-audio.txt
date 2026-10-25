@@ -4,3 +4,4 @@ numpy<2
 tensorflow==2.15.1
 tensorflow-hub==0.16.1
 yt-dlp>=2025.3.31
+opencv-python<4.12
