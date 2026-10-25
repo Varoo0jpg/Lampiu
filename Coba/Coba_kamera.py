@@ -104,6 +104,41 @@ def validasi_model_kendaraan(model):
                 "dan bobot ketika memakai dataset kendaraan darurat."
             )
 
+KELAS_DARURAT = {
+    0: "Ambulance",
+    1: "Fire_truck",
+    2: "Normal_vehicle",
+    3: "Police_car",
+    4: "Towing_truck",
+}
+INDEKS_KENDARAAN_DARURAT = [0, 1, 3, 4]
+
+
+def validasi_model_darurat(model):
+    """Periksa nama kelas bobot hasil training sebelum model dipakai."""
+    nama = getattr(model, "names", None)
+    if nama is None:
+        raise RuntimeError("Model darurat tidak memiliki daftar nama kelas.")
+
+    ditemukan = []
+    for indeks in range(len(KELAS_DARURAT)):
+        if isinstance(nama, dict):
+            aktual = nama.get(indeks, nama.get(str(indeks)))
+        elif isinstance(nama, (list, tuple)) and indeks < len(nama):
+            aktual = nama[indeks]
+        else:
+            aktual = None
+        ditemukan.append(
+            str(aktual).strip().lower().replace(" ", "_") if aktual is not None else ""
+        )
+
+    diharapkan = [KELAS_DARURAT[i].lower() for i in range(len(KELAS_DARURAT))]
+    if ditemukan != diharapkan:
+        raise RuntimeError(
+            "Bobot yolo26n_emergency_best.pt tidak cocok dengan lima kelas dataset_darurat. "
+            f"Diharapkan {diharapkan}, ditemukan {ditemukan}."
+        )
+
 # ROI per lajur (pecahan frame): area antrean di depan kamera. SESUAIKAN per kamera.
 ROI_DEFAULT = [(0.15, 0.30), (0.85, 0.30), (0.98, 1.00), (0.02, 1.00)]
 ROI = {l: list(ROI_DEFAULT) for l in DAFTAR_LAJUR}
@@ -148,6 +183,7 @@ class DetektorKamera(threading.Thread):
         self.frames = {l: None for l in DAFTAR_LAJUR}
         self.jumlah = {l: {j: 0 for j in BOBOT_KENDARAAN} for l in DAFTAR_LAJUR}
         self._riwayat = {l: collections.deque(maxlen=5) for l in DAFTAR_LAJUR}
+        self.model_darurat_aktif = False
 
     def _buka_sumber(self):
         for lajur, sumber in SUMBER_KAMERA.items():
@@ -172,6 +208,22 @@ class DetektorKamera(threading.Thread):
             from ultralytics import YOLO
             model = YOLO(MODEL_PATH)
             validasi_model_kendaraan(model)
+
+            # Bobot khusus hasil train_emergency_yolo.py bersifat opsional.
+            # Jika tersedia dan valid, model ini menjadi konfirmasi visual tambahan.
+            model_darurat = None
+            path_model_darurat = resource_path("yolo26n_emergency_best.pt")
+            if os.path.isfile(path_model_darurat):
+                model_darurat = YOLO(path_model_darurat)
+                validasi_model_darurat(model_darurat)
+                self.model_darurat_aktif = True
+                print(f"[OK] Model kendaraan darurat aktif: {path_model_darurat}")
+            else:
+                print(
+                    "[i] Bobot khusus kendaraan darurat belum ditemukan. "
+                    "Deteksi visual darurat belum aktif. Jalankan train_emergency_yolo.py "
+                    "dan tempatkan hasilnya di Coba/yolo26n_emergency_best.pt."
+                )
             self._buka_sumber()
         except Exception as e:
             self.error = repr(e)
@@ -194,10 +246,22 @@ class DetektorKamera(threading.Thread):
                 continue
 
             daftar = list(imgs)
-            hasil = model([imgs[l] for l in daftar], conf=CONF, imgsz=IMGSZ,
+            batch_gambar = [imgs[l] for l in daftar]
+            hasil = model(batch_gambar, conf=CONF, imgsz=IMGSZ,
                           classes=list(KELAS_YOLO), verbose=False)
 
-            for lajur, res in zip(daftar, hasil):
+            if model_darurat is not None:
+                hasil_darurat = model_darurat(
+                    batch_gambar,
+                    conf=CONF,
+                    imgsz=IMGSZ,
+                    classes=INDEKS_KENDARAAN_DARURAT,
+                    verbose=False,
+                )
+            else:
+                hasil_darurat = [None] * len(daftar)
+
+            for lajur, res, res_darurat in zip(daftar, hasil, hasil_darurat):
                 img = imgs[lajur]
                 poly = np.array([(int(x * w), int(y * h)) for x, y in ROI[lajur]], np.int32)
                 hitung = {j: 0 for j in BOBOT_KENDARAAN}
@@ -210,6 +274,33 @@ class DetektorKamera(threading.Thread):
                     cv2.rectangle(img, (int(x1), int(y1)), (int(x2), int(y2)), warna, 2)
                     if dalam:
                         hitung[jenis] += 1
+
+                # Model kedua hanya memvalidasi kelas kendaraan darurat.
+                # Kotak darurat memakai warna oranye dan label berisi confidence YOLO.
+                if res_darurat is not None:
+                    for box_darurat in res_darurat.boxes:
+                        indeks = int(box_darurat.cls[0])
+                        nama_kelas = KELAS_DARURAT.get(indeks, f"kelas_{indeks}")
+                        confidence = float(box_darurat.conf[0])
+                        x1, y1, x2, y2 = [int(v) for v in box_darurat.xyxy[0].tolist()]
+                        cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+                        dalam_roi = (
+                            (not GUNAKAN_ROI)
+                            or cv2.pointPolygonTest(poly, (cx, cy), False) >= 0
+                        )
+                        warna_darurat = (0, 165, 255) if dalam_roi else (120, 120, 120)
+                        cv2.rectangle(img, (x1, y1), (x2, y2), warna_darurat, 2)
+                        label_darurat = f"{nama_kelas} {confidence:.0%}"
+                        cv2.putText(
+                            img,
+                            label_darurat,
+                            (x1, max(18, y1 - 8)),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.55,
+                            warna_darurat,
+                            2,
+                        )
+
                 if GUNAKAN_ROI:
                     cv2.polylines(img, [poly], True, (0, 255, 255), 2)
 
