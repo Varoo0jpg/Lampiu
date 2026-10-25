@@ -2,7 +2,7 @@
 # GUI CustomTkinter (Coba.py) + deteksi kendaraan 4 kamera (YOLO)
 #
 # Instalasi:
-#   pip install customtkinter pillow opencv-python ultralytics numpy openpyxl
+#   pip install customtkinter pillow opencv-python ultralytics numpy
 #
 # Penanda perubahan terhadap Coba.py asli:
 #   [BARU]       = bagian tambahan (deteksi kamera, tampilan feed)
@@ -13,14 +13,10 @@ import random
 import sys
 import threading
 import time
-from datetime import datetime
-from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
 import cv2
 import numpy as np
-from openpyxl import Workbook
-from openpyxl.styles import Alignment, Font, PatternFill
 from PIL import Image
 
 # ===============================================================
@@ -49,10 +45,6 @@ HEX_DARK_BG = "#1e2530"
 # Sumber tiap lajur: indeks kamera (0,1,2,..), path file video, atau None (input manual).
 # Default: hanya kamera laptop untuk lajur Utara.
 SUMBER_KAMERA = {"Utara": "https://www.youtube.com/watch?v=Ck45cxJAh-s", "Timur": "https://www.youtube.com/watch?v=u-8iSRWgi_c", "Selatan": "https://www.youtube.com/live/BdPvBNLy5kc?si=tm8jdiBL6TW7jkJy", "Barat": "https://www.youtube.com/watch?v=D_R5EpqQIpo"}
-
-# Sumber audio per simpang. Secara default memakai URL yang sama dengan kamera.
-# Kamu bisa menggantinya dengan path MP4 lokal, misalnya C:/Lampiu/video/utara.mp4.
-SUMBER_AUDIO = dict(SUMBER_KAMERA)
 # Contoh 4 kamera USB:
 # SUMBER_KAMERA = {"Utara": 0, "Timur": 1, "Selatan": 2, "Barat": 3}
 # Contoh 4 file video:
@@ -332,25 +324,13 @@ class TrafficGUI(ctk.CTk):
 
         # [BARU] State kamera & penjadwalan
         self._id_ticker = None
-        self._id_audio_poll = None
         self.waktu_hijau_terakhir = {l: time.time() for l in DAFTAR_LAJUR}
         self.detektor = None
-        self.audio_engine = None
-        self.audio_detection_status = {l: False for l in DAFTAR_LAJUR}
-        self.audio_lane_status = {}
         self.kotak_kamera = {}
         self.label_kamera = {}
         self.gambar_kamera = {}
         self.jumlah_terakhir = {}
         self._lajur_gagal = set()
-
-        # Rekaman data untuk spreadsheet: satu entri per lajur dalam setiap putaran.
-        self.data_putaran = []
-        self.data_putaran_berjalan = []
-        self.lajur_tercatat_putaran = set()
-        self.nomor_putaran = 1
-        self._snapshot_fase_hijau = None
-        self._waktu_monotonic_fase_hijau = None
 
         # Konfigurasi Master Grid Layout
         self.grid_columnconfigure(0, weight=0, minsize=360)  # Kolom Kontrol Kiri
@@ -366,9 +346,6 @@ class TrafficGUI(ctk.CTk):
         # Bangun Komponen Tampilan
         self.bangun_panel_kontrol_kiri()
         self.bangun_grid_simulasi_kanan()
-
-        # Jalankan deteksi sirene di thread latar agar model audio tidak membekukan GUI.
-        self.mulai_deteksi_audio()
 
         # [BARU] Jalankan deteksi kamera
         self.mulai_deteksi()
@@ -432,7 +409,7 @@ class TrafficGUI(ctk.CTk):
         self.btn_acak.pack(fill="x", padx=15, pady=5)
 
     def bangun_grid_simulasi_kanan(self):
-        """Membangun penempatan layout kamera, audio confidence, dan area analisis."""
+        """Membangun penempatan layout grid 4 kamera dan grafik suara."""
         # --- KOLOM 1: AUDIO CONFIDENCE & AREA GRAFIK ---
         f_suara1 = ctk.CTkFrame(self, fg_color=HEX_DARK_BG, border_width=1)
         f_suara1.grid(row=0, column=1, sticky="nsew", padx=4, pady=4)
@@ -445,7 +422,7 @@ class TrafficGUI(ctk.CTk):
         ).pack(pady=(8, 1))
         ctk.CTkLabel(
             f_suara1,
-            text="Skor sirene per simpang (belum terkalibrasi)",
+            text="Probabilitas sirene per simpang",
             font=("Arial", 9),
             text_color="#aab7c4",
         ).pack(pady=(0, 4))
@@ -496,29 +473,22 @@ class TrafficGUI(ctk.CTk):
         )
         self.lbl_status_audio.pack(pady=(2, 7))
 
-        # Area analisis memanjang di kolom tengah; bagian Data Akustik 1 dan 2 dihapus.
-        f_suara2.grid(row=1, column=1, rowspan=3, sticky="nsew", padx=4, pady=4)
+        f_akustik1 = ctk.CTkFrame(self, fg_color="#151a21")
+        f_akustik1.grid(row=1, column=1, sticky="nsew", padx=4, pady=4)
+        ctk.CTkLabel(f_akustik1, text="Data Akustik 1", text_color="gray").pack(expand=True)
+
+        # Area ini disiapkan untuk grafik yang dikembangkan terpisah.
+        f_suara2 = ctk.CTkFrame(self, fg_color=HEX_DARK_BG, border_width=1)
+        f_suara2.grid(row=2, column=1, sticky="nsew", padx=4, pady=4)
         ctk.CTkLabel(
             f_suara2,
-            text="GRAFIK ANALISIS\nRingkasan data lalu lintas per putaran",
+            text="[ Area Grafik Analisis ]\n(Dikembangkan terpisah)",
             text_color="#5dade2",
-            font=("Arial", 13, "bold"),
-        ).pack(pady=(18, 8))
-        ctk.CTkLabel(
-            f_suara2,
-            text="Unduh jumlah kendaraan tiap lajur dan durasi lampu hijau dalam format Excel.",
-            text_color="#aab7c4",
-            wraplength=330,
-        ).pack(padx=18, pady=(0, 12))
-        self.btn_ekspor_data = ctk.CTkButton(
-            f_suara2,
-            text="Unduh Data Spreadsheet (.xlsx)",
-            command=self.ekspor_data_spreadsheet,
-            fg_color="#16803c",
-            hover_color="#11632e",
-            height=38,
-        )
-        self.btn_ekspor_data.pack(padx=18, pady=8)
+        ).pack(expand=True)
+
+        f_akustik2 = ctk.CTkFrame(self, fg_color="#151a21")
+        f_akustik2.grid(row=3, column=1, sticky="nsew", padx=4, pady=4)
+        ctk.CTkLabel(f_akustik2, text="Data Akustik 2", text_color="gray").pack(expand=True)
 
         # --- KOLOM 2 & 3: BLOK MONITOR KAMERA & DATA INPUT LAJUR ---
         self.kumpulan_panel = {}
@@ -566,16 +536,17 @@ class TrafficGUI(ctk.CTk):
     # -----------------------------------------------------------
     # PEMBARUAN AUDIO CONFIDENCE
     # -----------------------------------------------------------
-    def perbarui_confidence_audio(self, hasil, deteksi=None):
+    def perbarui_confidence_audio(self, hasil):
         """
-        Memperbarui skor model sirene per simpang.
-        Skor YAMNet belum terkalibrasi sebagai probabilitas, jadi gunakan sebagai
-        indikator eksperimen dan bukan keputusan lampu lalu lintas otomatis.
+        Memperbarui panel audio confidence dari hasil modul deteksi sirene.
+
+        Args:
+            hasil: dictionary dengan nama lajur dan probabilitas 0.0 sampai 1.0.
+                   Gunakan None jika audio untuk lajur tersebut belum tersedia.
+        Panggil metode ini pada thread GUI/Tkinter.
         """
         if not isinstance(hasil, dict):
             raise TypeError("hasil audio harus berupa dictionary per lajur")
-        if deteksi is not None:
-            self.audio_detection_status.update(deteksi)
 
         tersedia = []
         for lajur in DAFTAR_LAJUR:
@@ -585,7 +556,6 @@ class TrafficGUI(ctk.CTk):
             if nilai is None:
                 self.audio_confidence_values[lajur] = None
                 widget["progress"].set(0)
-                widget["progress"].configure(progress_color="#3498db")
                 widget["persen"].configure(text="--%", text_color="#aab7c4")
                 continue
 
@@ -593,128 +563,33 @@ class TrafficGUI(ctk.CTk):
                 confidence = float(nilai)
             except (TypeError, ValueError):
                 raise ValueError(
-                    f"Skor audio untuk lajur {lajur} harus berupa angka 0.0 sampai 1.0 atau None"
+                    f"Confidence audio untuk lajur {lajur} harus berupa angka 0.0 sampai 1.0 atau None"
                 )
+
             if not 0.0 <= confidence <= 1.0:
                 raise ValueError(
-                    f"Skor audio untuk lajur {lajur} di luar rentang 0.0 sampai 1.0"
+                    f"Confidence audio untuk lajur {lajur} di luar rentang 0.0 sampai 1.0"
                 )
 
             self.audio_confidence_values[lajur] = confidence
-            is_detected = self.audio_detection_status.get(lajur, False)
             widget["progress"].set(confidence)
-            widget["progress"].configure(
-                progress_color="#e67e22" if is_detected else "#3498db"
-            )
             widget["persen"].configure(
                 text=f"{confidence * 100:.0f}%",
-                text_color="#e67e22" if is_detected else "#ffffff",
+                text_color="#ffffff",
             )
             tersedia.append((lajur, confidence))
 
-        indikasi = [
-            lajur for lajur in DAFTAR_LAJUR
-            if self.audio_detection_status.get(lajur, False)
-        ]
-        if indikasi:
+        if not tersedia:
             self.lbl_status_audio.configure(
-                text="Indikasi sirene: " + ", ".join(indikasi) + " | perlu validasi visual",
-                text_color="#e67e22",
-            )
-        elif tersedia:
-            lajur_tertinggi, skor_tertinggi = max(tersedia, key=lambda item: item[1])
-            self.lbl_status_audio.configure(
-                text=f"Skor tertinggi: {lajur_tertinggi} ({skor_tertinggi * 100:.0f}%)",
-                text_color="#5dade2",
-            )
-
-    def mulai_deteksi_audio(self):
-        """Jalankan classifier sirene di thread latar dan poll hasil dari GUI."""
-        try:
-            from siren_audio import SirenAudioEngine
-        except ImportError as exc:
-            self.lbl_status_audio.configure(
-                text=f"Modul audio tidak tersedia: {exc}",
-                text_color="#e74c3c",
-            )
-            return
-
-        sumber_aktif = {
-            lajur: sumber
-            for lajur, sumber in SUMBER_AUDIO.items()
-            if sumber is not None and str(sumber).strip()
-        }
-        if not sumber_aktif:
-            self.lbl_status_audio.configure(
-                text="Belum ada sumber audio. Atur SUMBER_AUDIO di Coba_kamera.py.",
+                text="Menunggu input audio",
                 text_color="#aab7c4",
             )
-            return
-
-        try:
-            self.audio_engine = SirenAudioEngine(sumber_aktif)
-            self.audio_engine.start()
-            self._id_audio_poll = self.after(250, self.poll_deteksi_audio)
-        except Exception as exc:
-            self.audio_engine = None
+        else:
+            lajur_tertinggi, skor_tertinggi = max(tersedia, key=lambda item: item[1])
             self.lbl_status_audio.configure(
-                text=f"Audio detector gagal dimulai: {exc}",
-                text_color="#e74c3c",
+                text=f"Sinyal tertinggi: {lajur_tertinggi} ({skor_tertinggi * 100:.0f}%)",
+                text_color="#5dade2",
             )
-
-    def poll_deteksi_audio(self):
-        """Ambil skor/status audio dan perbarui panel pada thread utama Tkinter."""
-        engine = self.audio_engine
-        if engine is None:
-            return
-
-        try:
-            events = engine.drain_events()
-        except Exception as exc:
-            self.lbl_status_audio.configure(
-                text=f"Gagal membaca hasil audio: {exc}",
-                text_color="#e74c3c",
-            )
-            self._id_audio_poll = self.after(500, self.poll_deteksi_audio)
-            return
-
-        for event in events:
-            event_type = event.get("type")
-            lajur = event.get("lane")
-
-            if event_type == "status":
-                pesan = str(event.get("message", "Status audio berubah"))
-                if lajur in DAFTAR_LAJUR:
-                    self.audio_lane_status[lajur] = pesan
-                    if not any(self.audio_detection_status.values()):
-                        is_error = any(
-                            kata in pesan.casefold()
-                            for kata in ("gagal", "tidak ditemukan", "bermasalah")
-                        )
-                        self.lbl_status_audio.configure(
-                            text=f"{lajur}: {pesan}",
-                            text_color="#e74c3c" if is_error else "#aab7c4",
-                        )
-                elif pesan:
-                    is_error = any(
-                        kata in pesan.casefold()
-                        for kata in ("gagal", "tidak ditemukan", "bermasalah")
-                    )
-                    self.lbl_status_audio.configure(
-                        text=pesan,
-                        text_color="#e74c3c" if is_error else "#aab7c4",
-                    )
-
-            elif event_type == "confidence" and lajur in DAFTAR_LAJUR:
-                self.audio_detection_status[lajur] = bool(event.get("detected", False))
-                nilai_sekarang = dict(self.audio_confidence_values)
-                nilai_sekarang[lajur] = event.get("confidence")
-                self.perbarui_confidence_audio(
-                    nilai_sekarang,
-                    deteksi=self.audio_detection_status,
-                )
-
-        self._id_audio_poll = self.after(250, self.poll_deteksi_audio)
 
     # -----------------------------------------------------------
     # [BARU] INTEGRASI KAMERA
@@ -774,10 +649,6 @@ class TrafficGUI(ctk.CTk):
     def tutup_aplikasi(self):
         if self._id_ticker is not None:
             self.after_cancel(self._id_ticker)
-        if self._id_audio_poll is not None:
-            self.after_cancel(self._id_audio_poll)
-        if self.audio_engine is not None:
-            self.audio_engine.stop()
         if self.detektor is not None:
             self.detektor.stop()
         self.destroy()
@@ -941,9 +812,9 @@ class TrafficGUI(ctk.CTk):
         return self.tentukan_lajur_paling_padat(self.lajur_aktif)
 
     def siklus_transisi_fase(self):
-        """Menangani perpindahan fase dan merekam fase hijau yang baru selesai."""
+        """[PERBAIKAN] Method ini dipanggil ticker tetapi tidak ada di kode asli
+        (akan menyebabkan AttributeError saat hitung mundur habis)."""
         if self.fase_saat_ini == "HIJAU":
-            self._selesaikan_rekaman_fase_hijau()
             self.fase_saat_ini = "KUNING"
             self.hitung_mundur = FASE_KUNING
         else:
@@ -957,7 +828,6 @@ class TrafficGUI(ctk.CTk):
             self.lajur_aktif = lajur_baru
             self.fase_saat_ini = "HIJAU"
             self.hitung_mundur = self.hitung_durasi_fase_hijau(self.lajur_aktif)
-            self._mulai_rekaman_fase_hijau()
 
     def sinkronisasi_tampilan_ui(self):
         """Memperbarui warna bulatan lampu, countdown, dan bingkai kamera."""
@@ -996,158 +866,6 @@ class TrafficGUI(ctk.CTk):
         # [PERBAIKAN] id disimpan agar bisa dibatalkan (hindari ticker ganda saat stop lalu start cepat)
         self._id_ticker = self.after(1000, self.engine_simulation_ticker)
 
-
-    # -----------------------------------------------------------
-    # REKAMAN DATA PER PUTARAN & EKSPOR SPREADSHEET
-    # -----------------------------------------------------------
-    def _ambil_jumlah_kendaraan_lajur(self, lajur):
-        """Ambil jumlah kendaraan yang sedang tampil pada panel satu lajur."""
-        data = {}
-        panel = self.kumpulan_panel[lajur]
-        for jenis, kotak in panel.kolom_input.items():
-            try:
-                data[jenis] = max(0, int(kotak.get()))
-            except (TypeError, ValueError):
-                data[jenis] = 0
-        return data
-
-    def _mulai_rekaman_fase_hijau(self):
-        """Simpan jumlah kendaraan dan waktu mulai saat suatu lajur mendapat hijau."""
-        jumlah = self._ambil_jumlah_kendaraan_lajur(self.lajur_aktif)
-        self._snapshot_fase_hijau = {
-            "Putaran": self.nomor_putaran,
-            "Waktu Mulai Fase": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "Jalur": self.lajur_aktif,
-            "Motor": jumlah.get("Motor", 0),
-            "Mobil": jumlah.get("Mobil", 0),
-            "Truk": jumlah.get("Truk", 0),
-            "Bus": jumlah.get("Bus", 0),
-            "Total Kendaraan": sum(jumlah.values()),
-            "Durasi Hijau Terprogram (detik)": int(self.hitung_mundur),
-            "Durasi Hijau Aktual (detik)": 0,
-        }
-        self._waktu_monotonic_fase_hijau = time.monotonic()
-
-    def _selesaikan_rekaman_fase_hijau(self):
-        """Simpan hasil fase hijau dan tutup putaran setelah keempat lajur tercatat."""
-        if self._snapshot_fase_hijau is None:
-            return
-
-        rekaman = dict(self._snapshot_fase_hijau)
-        # Gunakan jumlah kendaraan terbaru pada akhir fase hijau.
-        jumlah_akhir = self._ambil_jumlah_kendaraan_lajur(rekaman["Jalur"])
-        for jenis in ("Motor", "Mobil", "Truk", "Bus"):
-            rekaman[jenis] = jumlah_akhir.get(jenis, 0)
-        rekaman["Total Kendaraan"] = sum(jumlah_akhir.values())
-
-        if self._waktu_monotonic_fase_hijau is not None:
-            rekaman["Durasi Hijau Aktual (detik)"] = max(
-                0, int(round(time.monotonic() - self._waktu_monotonic_fase_hijau))
-            )
-
-        lajur = rekaman["Jalur"]
-        self.data_putaran_berjalan.append(rekaman)
-        self.lajur_tercatat_putaran.add(lajur)
-        self._snapshot_fase_hijau = None
-        self._waktu_monotonic_fase_hijau = None
-
-        # Satu putaran selesai setelah semua lajur mendapat hijau setidaknya sekali.
-        # Jika suatu lajur mendapat hijau berulang kali, semua fasenya tetap disimpan.
-        if all(l in self.lajur_tercatat_putaran for l in DAFTAR_LAJUR):
-            self.data_putaran.extend(self.data_putaran_berjalan)
-            self.data_putaran_berjalan = []
-            self.lajur_tercatat_putaran = set()
-            self.nomor_putaran += 1
-
-    def ekspor_data_spreadsheet(self):
-        """Ekspor data putaran yang sudah terekam ke file Excel .xlsx."""
-        rekaman = list(self.data_putaran)
-        sementara = list(self.data_putaran_berjalan)
-
-        # Sertakan fase hijau yang sedang berlangsung agar operator bisa mengekspor
-        # data tanpa harus menunggu fase tersebut selesai.
-        if (
-            self.simulasi_aktif
-            and self.fase_saat_ini == "HIJAU"
-            and self._snapshot_fase_hijau is not None
-        ):
-            berjalan = dict(self._snapshot_fase_hijau)
-            if self._waktu_monotonic_fase_hijau is not None:
-                berjalan["Durasi Hijau Aktual (detik)"] = max(
-                    0, int(round(time.monotonic() - self._waktu_monotonic_fase_hijau))
-                )
-            sementara.append(berjalan)
-
-        rekaman.extend(sementara)
-
-        if not rekaman:
-            messagebox.showinfo(
-                "Belum ada data",
-                "Belum ada fase hijau yang tercatat. Jalankan simulasi terlebih dahulu.",
-                parent=self,
-            )
-            return
-
-        nama_awal = "data_lalu_lintas_" + datetime.now().strftime("%Y%m%d_%H%M%S") + ".xlsx"
-        lokasi = filedialog.asksaveasfilename(
-            parent=self,
-            title="Simpan data lalu lintas",
-            defaultextension=".xlsx",
-            initialfile=nama_awal,
-            filetypes=[("Excel Workbook", "*.xlsx")],
-        )
-        if not lokasi:
-            return
-
-        try:
-            workbook = Workbook()
-            sheet = workbook.active
-            sheet.title = "Data Lalu Lintas"
-            headers = [
-                "Putaran",
-                "Waktu Mulai Fase",
-                "Jalur",
-                "Motor",
-                "Mobil",
-                "Truk",
-                "Bus",
-                "Total Kendaraan",
-                "Durasi Hijau Terprogram (detik)",
-                "Durasi Hijau Aktual (detik)",
-            ]
-            sheet.append(headers)
-
-            for item in rekaman:
-                sheet.append([item.get(kolom, "") for kolom in headers])
-
-            warna_header = PatternFill(fill_type="solid", fgColor="1E3A5F")
-            for cell in sheet[1]:
-                cell.font = Font(bold=True, color="FFFFFF")
-                cell.fill = warna_header
-                cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-
-            sheet.freeze_panes = "A2"
-            sheet.auto_filter.ref = sheet.dimensions
-            lebar_kolom = {
-                "A": 10, "B": 22, "C": 14, "D": 10, "E": 10,
-                "F": 10, "G": 10, "H": 18, "I": 30, "J": 28,
-            }
-            for kolom, lebar in lebar_kolom.items():
-                sheet.column_dimensions[kolom].width = lebar
-            sheet.row_dimensions[1].height = 34
-            workbook.save(lokasi)
-            messagebox.showinfo(
-                "Ekspor berhasil",
-                f"Data lalu lintas berhasil disimpan ke:\n{lokasi}",
-                parent=self,
-            )
-        except Exception as e:
-            messagebox.showerror(
-                "Ekspor gagal",
-                f"File spreadsheet tidak dapat disimpan.\n\nDetail: {e}",
-                parent=self,
-            )
-
     def action_mulai_simulasi(self):
         if self.simulasi_aktif:
             return
@@ -1159,7 +877,6 @@ class TrafficGUI(ctk.CTk):
         # Reset fase awal dan hitung durasi hijau lajur aktif dari data saat ini
         self.fase_saat_ini = "HIJAU"
         self.hitung_mundur = self.hitung_durasi_fase_hijau(self.lajur_aktif)
-        self._mulai_rekaman_fase_hijau()
 
         self.sinkronisasi_tampilan_ui()
         self._id_ticker = self.after(1000, self.engine_simulation_ticker)
