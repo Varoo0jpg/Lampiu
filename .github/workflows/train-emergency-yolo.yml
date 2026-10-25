@@ -1,6 +1,14 @@
 name: Train Lampiu Emergency Vehicle YOLO
 
 on:
+  push:
+    branches:
+      - feat/train-emergency-yolo
+    paths:
+      - "train_emergency_yolo.py"
+      - ".github/workflows/train-emergency-yolo.yml"
+      - "Coba/dataset_darurat/**"
+      - "Coba/yolo26n.pt"
   workflow_dispatch:
     inputs:
       epochs:
