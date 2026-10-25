@@ -67,6 +67,43 @@ UKURAN_TAMPIL = (330, 248)       # ukuran feed di kotak kamera GUI
 # Kelas COCO -> jenis kendaraan pada panel input
 KELAS_YOLO = {2: "Mobil", 3: "Motor", 5: "Bus", 7: "Truk"}
 
+# Nama kelas yang wajib cocok dengan bobot YOLO COCO bawaan.
+# Pemeriksaan ini mencegah model hasil training khusus dipakai dengan indeks kelas COCO.
+NAMA_KELAS_COCO = {
+    2: {"car"},
+    3: {"motorcycle", "motorbike"},
+    5: {"bus"},
+    7: {"truck"},
+}
+
+
+def validasi_model_kendaraan(model):
+    """Pastikan indeks kelas model cocok dengan KELAS_YOLO sebelum menghitung kendaraan."""
+    nama = getattr(model, "names", None)
+    if nama is None:
+        raise RuntimeError(
+            "Model YOLO tidak menyediakan daftar nama kelas. "
+            "Pastikan MODEL_PATH menunjuk ke bobot deteksi kendaraan yang valid."
+        )
+
+    for indeks, nama_yang_diharapkan in NAMA_KELAS_COCO.items():
+        if isinstance(nama, dict):
+            aktual = nama.get(indeks, nama.get(str(indeks)))
+        elif isinstance(nama, (list, tuple)) and indeks < len(nama):
+            aktual = nama[indeks]
+        else:
+            aktual = None
+
+        aktual = str(aktual).strip().lower().replace("_", " ") if aktual is not None else ""
+        if aktual not in nama_yang_diharapkan:
+            raise RuntimeError(
+                f"Model pada {MODEL_PATH!r} tidak cocok dengan pemetaan kelas kendaraan COCO. "
+                f"Kelas indeks {indeks} seharusnya salah satu dari "
+                f"{sorted(nama_yang_diharapkan)}, tetapi model berisi {aktual!r}. "
+                "Gunakan bobot YOLO COCO yang sesuai, atau sesuaikan pemetaan kelas "
+                "dan bobot ketika memakai dataset kendaraan darurat."
+            )
+
 # ROI per lajur (pecahan frame): area antrean di depan kamera. SESUAIKAN per kamera.
 ROI_DEFAULT = [(0.15, 0.30), (0.85, 0.30), (0.98, 1.00), (0.02, 1.00)]
 ROI = {l: list(ROI_DEFAULT) for l in DAFTAR_LAJUR}
@@ -134,6 +171,7 @@ class DetektorKamera(threading.Thread):
         try:
             from ultralytics import YOLO
             model = YOLO(MODEL_PATH)
+            validasi_model_kendaraan(model)
             self._buka_sumber()
         except Exception as e:
             self.error = repr(e)
@@ -508,37 +546,102 @@ class TrafficGUI(ctk.CTk):
 
     def hitung_durasi_fase_hijau(self, lajur_target):
         """
-        Menghitung durasi lampu hijau secara proporsional adaptif.
-        Catatan:
-        1. Waktu total dari keempat simpang pasti selalu 120 detik.
-        2. Waktu masing-masing simpang ditentukan dari perhitungan value (skor) setiap simpang.
-        ([PERBAIKAN] versi duplikat pertama yang tidak terpakai dihapus.)
+        Mengalokasikan total 120 detik waktu hijau secara proporsional terhadap skor
+        kepadatan. Setiap lajur dibatasi oleh FASE_HIJAU_MIN dan FASE_HIJAU_MAX.
+        Fase kuning dihitung terpisah dan tidak termasuk anggaran 120 detik ini.
         """
-        skor_simpang = {l: self.kumpulan_panel[l].ambil_skor_bobot() for l in DAFTAR_LAJUR}
+        if lajur_target not in DAFTAR_LAJUR:
+            raise ValueError(f"Lajur tidak dikenal: {lajur_target!r}")
 
-        total_skor = sum(skor_simpang.values())
-        TOTAL_WAKTU_SIKLUS = 120
+        jumlah_lajur = len(DAFTAR_LAJUR)
+        total_waktu_hijau = 120
+        waktu_min = FASE_HIJAU_MIN
+        waktu_max = FASE_HIJAU_MAX
 
-        # KONDISI 1: Jika semua simpang memiliki value sama atau kosong total (0)
-        if len(set(skor_simpang.values())) == 1 or total_skor == 0:
-            return 30  # 30 dtk x 4 simpang = 120 detik bersih
+        if waktu_min <= 0 or waktu_max < waktu_min:
+            raise ValueError("Konfigurasi durasi hijau minimum/maksimum tidak valid.")
+        if jumlah_lajur * waktu_min > total_waktu_hijau or jumlah_lajur * waktu_max < total_waktu_hijau:
+            raise ValueError(
+                "Total waktu hijau tidak dapat dialokasikan dengan batas minimum dan maksimum "
+                "untuk jumlah lajur yang dikonfigurasi."
+            )
 
-        # KONDISI 2: Jika value bervariasi (dihitung proporsional dari value masing-masing)
-        alokasi_waktu = {}
-        waktu_terdistribusi = 0
+        skor = {
+            lajur: max(0.0, float(self.kumpulan_panel[lajur].ambil_skor_bobot()))
+            for lajur in DAFTAR_LAJUR
+        }
 
-        for i, lajur in enumerate(DAFTAR_LAJUR):
-            if i == len(DAFTAR_LAJUR) - 1:
-                # Simpang terakhir mengambil sisa waktu agar total siklus tepat 120 detik
-                # [PERBAIKAN] diberi batas minimal 5 dtk; versi asli bisa menghasilkan 0 atau negatif
-                alokasi_waktu[lajur] = max(TOTAL_WAKTU_SIKLUS - waktu_terdistribusi, 5)
+        # Mulai dengan waktu minimum setiap lajur, lalu bagikan sisanya berdasarkan skor.
+        tambahan = {lajur: 0.0 for lajur in DAFTAR_LAJUR}
+        sisa = float(total_waktu_hijau - jumlah_lajur * waktu_min)
+        aktif = list(DAFTAR_LAJUR)
+        kapasitas_tambahan = float(waktu_max - waktu_min)
+
+        # Jika sebuah lajur mencapai batas maksimum, bekukan alokasinya dan
+        # distribusikan ulang sisanya kepada lajur yang belum mencapai batas.
+        while aktif and sisa > 1e-9:
+            total_skor_aktif = sum(skor[lajur] for lajur in aktif)
+            if total_skor_aktif <= 0:
+                bobot_aktif = {lajur: 1.0 for lajur in aktif}
+                total_bobot_aktif = float(len(aktif))
             else:
-                porsi_waktu = int(round((skor_simpang[lajur] / total_skor) * TOTAL_WAKTU_SIKLUS))
-                porsi_waktu = max(porsi_waktu, 5)   # proteksi: minimal 5 detik
-                alokasi_waktu[lajur] = porsi_waktu
-                waktu_terdistribusi += porsi_waktu
+                bobot_aktif = {lajur: skor[lajur] for lajur in aktif}
+                total_bobot_aktif = total_skor_aktif
 
-        return alokasi_waktu[lajur_target]
+            bagian = {
+                lajur: sisa * bobot_aktif[lajur] / total_bobot_aktif
+                for lajur in aktif
+            }
+            jenuh = [
+                lajur for lajur in aktif
+                if bagian[lajur] >= kapasitas_tambahan - tambahan[lajur] - 1e-9
+            ]
+
+            if jenuh:
+                for lajur in jenuh:
+                    ruang = max(0.0, kapasitas_tambahan - tambahan[lajur])
+                    tambahan[lajur] += ruang
+                    sisa -= ruang
+                    aktif.remove(lajur)
+            else:
+                for lajur in aktif:
+                    tambahan[lajur] += bagian[lajur]
+                sisa = 0.0
+
+        durasi_tepat = {
+            lajur: waktu_min + tambahan[lajur]
+            for lajur in DAFTAR_LAJUR
+        }
+        durasi = {
+            lajur: int(durasi_tepat[lajur])
+            for lajur in DAFTAR_LAJUR
+        }
+
+        # Pembulatan integer tetap harus menjaga total waktu hijau dan batas durasi.
+        sisa_pembulatan = total_waktu_hijau - sum(durasi.values())
+        urutan_pembulatan = sorted(
+            DAFTAR_LAJUR,
+            key=lambda lajur: (
+                durasi_tepat[lajur] - durasi[lajur],
+                skor[lajur],
+                -DAFTAR_LAJUR.index(lajur),
+            ),
+            reverse=True,
+        )
+        while sisa_pembulatan > 0:
+            kandidat = [
+                lajur for lajur in urutan_pembulatan
+                if durasi[lajur] < waktu_max
+            ]
+            if not kandidat:
+                raise RuntimeError("Gagal membagi sisa pembulatan waktu hijau.")
+            for lajur in kandidat:
+                if sisa_pembulatan <= 0:
+                    break
+                durasi[lajur] += 1
+                sisa_pembulatan -= 1
+
+        return durasi[lajur_target]
 
     def pilih_lajur_berikut(self):
         """[BARU] Menentukan lajur hijau berikutnya setelah fase kuning selesai."""
