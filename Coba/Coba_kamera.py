@@ -1034,6 +1034,12 @@ class TrafficGUI(ctk.CTk):
             return
 
         rekaman = dict(self._snapshot_fase_hijau)
+        # Gunakan jumlah kendaraan terbaru pada akhir fase hijau.
+        jumlah_akhir = self._ambil_jumlah_kendaraan_lajur(rekaman["Jalur"])
+        for jenis in ("Motor", "Mobil", "Truk", "Bus"):
+            rekaman[jenis] = jumlah_akhir.get(jenis, 0)
+        rekaman["Total Kendaraan"] = sum(jumlah_akhir.values())
+
         if self._waktu_monotonic_fase_hijau is not None:
             rekaman["Durasi Hijau Aktual (detik)"] = max(
                 0, int(round(time.monotonic() - self._waktu_monotonic_fase_hijau))
