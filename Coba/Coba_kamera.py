@@ -499,7 +499,7 @@ class TrafficGUI(ctk.CTk):
         f_suara2.grid(row=1, column=1, rowspan=3, sticky="nsew", padx=4, pady=4)
         ctk.CTkLabel(
             f_suara2,
-            text="GRAFIK ANALISIS\\nRingkasan data lalu lintas per putaran",
+            text="GRAFIK ANALISIS\nRingkasan data lalu lintas per putaran",
             text_color="#5dade2",
             font=("Arial", 13, "bold"),
         ).pack(pady=(18, 8))
@@ -1130,13 +1130,13 @@ class TrafficGUI(ctk.CTk):
             workbook.save(lokasi)
             messagebox.showinfo(
                 "Ekspor berhasil",
-                f"Data lalu lintas berhasil disimpan ke:\\n{lokasi}",
+                f"Data lalu lintas berhasil disimpan ke:\n{lokasi}",
                 parent=self,
             )
         except Exception as e:
             messagebox.showerror(
                 "Ekspor gagal",
-                f"File spreadsheet tidak dapat disimpan.\\n\\nDetail: {e}",
+                f"File spreadsheet tidak dapat disimpan.\n\nDetail: {e}",
                 parent=self,
             )
 
