@@ -45,6 +45,11 @@ HEX_DARK_BG = "#1e2530"
 # Sumber tiap lajur: indeks kamera (0,1,2,..), path file video, atau None (input manual).
 # Default: hanya kamera laptop untuk lajur Utara.
 SUMBER_KAMERA = {"Utara": "https://www.youtube.com/watch?v=Ck45cxJAh-s", "Timur": "https://www.youtube.com/watch?v=u-8iSRWgi_c", "Selatan": "https://www.youtube.com/live/BdPvBNLy5kc?si=tm8jdiBL6TW7jkJy", "Barat": "https://www.youtube.com/watch?v=D_R5EpqQIpo"}
+
+# Sumber audio per simpang. Boleh berupa URL streaming atau path MP4 lokal.
+# Secara default audio diambil dari URL yang sama dengan kamera.
+# Untuk MP4 lokal, ganti nilai setiap simpang, misalnya "C:/Lampiu/video/utara.mp4".
+SUMBER_AUDIO = dict(SUMBER_KAMERA)
 # Contoh 4 kamera USB:
 # SUMBER_KAMERA = {"Utara": 0, "Timur": 1, "Selatan": 2, "Barat": 3}
 # Contoh 4 file video:
@@ -324,8 +329,12 @@ class TrafficGUI(ctk.CTk):
 
         # [BARU] State kamera & penjadwalan
         self._id_ticker = None
+        self._id_audio_poll = None
         self.waktu_hijau_terakhir = {l: time.time() for l in DAFTAR_LAJUR}
         self.detektor = None
+        self.audio_engine = None
+        self.audio_detection_status = {l: False for l in DAFTAR_LAJUR}
+        self.audio_lane_status = {}
         self.kotak_kamera = {}
         self.label_kamera = {}
         self.gambar_kamera = {}
@@ -346,6 +355,9 @@ class TrafficGUI(ctk.CTk):
         # Bangun Komponen Tampilan
         self.bangun_panel_kontrol_kiri()
         self.bangun_grid_simulasi_kanan()
+
+        # Mulai audio detector secara terpisah agar loading model tidak membekukan GUI.
+        self.mulai_deteksi_audio()
 
         # [BARU] Jalankan deteksi kamera
         self.mulai_deteksi()
@@ -422,7 +434,7 @@ class TrafficGUI(ctk.CTk):
         ).pack(pady=(8, 1))
         ctk.CTkLabel(
             f_suara1,
-            text="Probabilitas sirene per simpang",
+            text="Skor sirene per simpang (belum terkalibrasi)",
             font=("Arial", 9),
             text_color="#aab7c4",
         ).pack(pady=(0, 4))
@@ -536,17 +548,16 @@ class TrafficGUI(ctk.CTk):
     # -----------------------------------------------------------
     # PEMBARUAN AUDIO CONFIDENCE
     # -----------------------------------------------------------
-    def perbarui_confidence_audio(self, hasil):
+    def perbarui_confidence_audio(self, hasil, deteksi=None):
         """
-        Memperbarui panel audio confidence dari hasil modul deteksi sirene.
-
-        Args:
-            hasil: dictionary dengan nama lajur dan probabilitas 0.0 sampai 1.0.
-                   Gunakan None jika audio untuk lajur tersebut belum tersedia.
-        Panggil metode ini pada thread GUI/Tkinter.
+        Memperbarui skor model sirene untuk tiap simpang.
+        Nilai berada di rentang 0.0 sampai 1.0. Skor YAMNet belum terkalibrasi
+        sebagai probabilitas dan harus diperlakukan sebagai indikator eksperimen.
         """
         if not isinstance(hasil, dict):
             raise TypeError("hasil audio harus berupa dictionary per lajur")
+        if deteksi is not None:
+            self.audio_detection_status.update(deteksi)
 
         tersedia = []
         for lajur in DAFTAR_LAJUR:
@@ -556,6 +567,7 @@ class TrafficGUI(ctk.CTk):
             if nilai is None:
                 self.audio_confidence_values[lajur] = None
                 widget["progress"].set(0)
+                widget["progress"].configure(progress_color="#3498db")
                 widget["persen"].configure(text="--%", text_color="#aab7c4")
                 continue
 
@@ -563,33 +575,128 @@ class TrafficGUI(ctk.CTk):
                 confidence = float(nilai)
             except (TypeError, ValueError):
                 raise ValueError(
-                    f"Confidence audio untuk lajur {lajur} harus berupa angka 0.0 sampai 1.0 atau None"
+                    f"Skor audio untuk lajur {lajur} harus berupa angka 0.0 sampai 1.0 atau None"
                 )
-
             if not 0.0 <= confidence <= 1.0:
                 raise ValueError(
-                    f"Confidence audio untuk lajur {lajur} di luar rentang 0.0 sampai 1.0"
+                    f"Skor audio untuk lajur {lajur} di luar rentang 0.0 sampai 1.0"
                 )
 
             self.audio_confidence_values[lajur] = confidence
+            is_detected = self.audio_detection_status.get(lajur, False)
             widget["progress"].set(confidence)
+            widget["progress"].configure(
+                progress_color="#e67e22" if is_detected else "#3498db"
+            )
             widget["persen"].configure(
                 text=f"{confidence * 100:.0f}%",
-                text_color="#ffffff",
+                text_color="#e67e22" if is_detected else "#ffffff",
             )
             tersedia.append((lajur, confidence))
 
-        if not tersedia:
+        indikasi = [
+            lajur for lajur in DAFTAR_LAJUR
+            if self.audio_detection_status.get(lajur, False)
+        ]
+        if indikasi:
             self.lbl_status_audio.configure(
-                text="Menunggu input audio",
-                text_color="#aab7c4",
+                text="Indikasi sirene: " + ", ".join(indikasi) + " | perlu validasi visual",
+                text_color="#e67e22",
             )
-        else:
+        elif tersedia:
             lajur_tertinggi, skor_tertinggi = max(tersedia, key=lambda item: item[1])
             self.lbl_status_audio.configure(
-                text=f"Sinyal tertinggi: {lajur_tertinggi} ({skor_tertinggi * 100:.0f}%)",
+                text=f"Skor tertinggi: {lajur_tertinggi} ({skor_tertinggi * 100:.0f}%)",
                 text_color="#5dade2",
             )
+
+    def mulai_deteksi_audio(self):
+        """Jalankan classifier audio pada thread latar dan poll hasil pada thread GUI."""
+        try:
+            from siren_audio import SirenAudioEngine
+        except ImportError as exc:
+            self.lbl_status_audio.configure(
+                text=f"Modul audio tidak tersedia: {exc}",
+                text_color="#e74c3c",
+            )
+            return
+
+        sumber_aktif = {
+            lajur: sumber
+            for lajur, sumber in SUMBER_AUDIO.items()
+            if sumber is not None and str(sumber).strip()
+        }
+        if not sumber_aktif:
+            self.lbl_status_audio.configure(
+                text="Belum ada sumber audio. Atur SUMBER_AUDIO di Coba_kamera.py.",
+                text_color="#aab7c4",
+            )
+            return
+
+        try:
+            self.audio_engine = SirenAudioEngine(sumber_aktif)
+            self.audio_engine.start()
+            self._id_audio_poll = self.after(250, self.poll_deteksi_audio)
+        except Exception as exc:
+            self.audio_engine = None
+            self.lbl_status_audio.configure(
+                text=f"Audio detector gagal dimulai: {exc}",
+                text_color="#e74c3c",
+            )
+
+    def poll_deteksi_audio(self):
+        """Ambil hasil audio dan perbarui panel pada thread utama Tkinter."""
+        engine = self.audio_engine
+        if engine is None:
+            return
+
+        try:
+            events = engine.drain_events()
+        except Exception as exc:
+            self.lbl_status_audio.configure(
+                text=f"Gagal membaca hasil audio: {exc}",
+                text_color="#e74c3c",
+            )
+            self._id_audio_poll = self.after(500, self.poll_deteksi_audio)
+            return
+
+        for event in events:
+            event_type = event.get("type")
+            lajur = event.get("lane")
+
+            if event_type == "status":
+                pesan = str(event.get("message", "Status audio berubah"))
+                if lajur in DAFTAR_LAJUR:
+                    self.audio_lane_status[lajur] = pesan
+                    # Pesan sumber hanya ditampilkan jika tidak sedang ada indikasi sirene.
+                    if not any(self.audio_detection_status.values()):
+                        self.lbl_status_audio.configure(
+                            text=f"{lajur}: {pesan}",
+                            text_color="#e74c3c" if (
+                                "gagal" in pesan.casefold()
+                                or "tidak ditemukan" in pesan.casefold()
+                                or "bermasalah" in pesan.casefold()
+                            ) else "#aab7c4",
+                        )
+                elif pesan:
+                    self.lbl_status_audio.configure(
+                        text=pesan,
+                        text_color="#e74c3c" if (
+                            "gagal" in pesan.casefold()
+                            or "tidak ditemukan" in pesan.casefold()
+                        ) else "#aab7c4",
+                    )
+
+            elif event_type == "confidence" and lajur in DAFTAR_LAJUR:
+                self.audio_detection_status[lajur] = bool(event.get("detected", False))
+                nilai_sekarang = dict(self.audio_confidence_values)
+                nilai_sekarang[lajur] = event.get("confidence")
+                self.perbarui_confidence_audio(
+                    nilai_sekarang,
+                    deteksi=self.audio_detection_status,
+                )
+
+        self._id_audio_poll = self.after(250, self.poll_deteksi_audio)
 
     # -----------------------------------------------------------
     # [BARU] INTEGRASI KAMERA
@@ -649,6 +756,10 @@ class TrafficGUI(ctk.CTk):
     def tutup_aplikasi(self):
         if self._id_ticker is not None:
             self.after_cancel(self._id_ticker)
+        if self._id_audio_poll is not None:
+            self.after_cancel(self._id_audio_poll)
+        if self.audio_engine is not None:
+            self.audio_engine.stop()
         if self.detektor is not None:
             self.detektor.stop()
         self.destroy()
