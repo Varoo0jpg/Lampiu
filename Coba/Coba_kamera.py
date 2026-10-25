@@ -238,7 +238,7 @@ class DetektorKamera(threading.Thread):
         for cap in self.caps.values():
             cap.release()
 
-
+# BANYUUU
 # ===============================================================
 # SUBSISTEM: INPUT DATA KENDARAAN (LAJUR PANEL CLASS)
 # ===============================================================
