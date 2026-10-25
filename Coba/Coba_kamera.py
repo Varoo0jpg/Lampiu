@@ -346,7 +346,8 @@ class TrafficGUI(ctk.CTk):
 
         # Rekaman data untuk spreadsheet: satu entri per lajur dalam setiap putaran.
         self.data_putaran = []
-        self.data_putaran_berjalan = {}
+        self.data_putaran_berjalan = []
+        self.lajur_tercatat_putaran = set()
         self.nomor_putaran = 1
         self._snapshot_fase_hijau = None
         self._waktu_monotonic_fase_hijau = None
@@ -1039,20 +1040,23 @@ class TrafficGUI(ctk.CTk):
             )
 
         lajur = rekaman["Jalur"]
-        self.data_putaran_berjalan[lajur] = rekaman
+        self.data_putaran_berjalan.append(rekaman)
+        self.lajur_tercatat_putaran.add(lajur)
         self._snapshot_fase_hijau = None
         self._waktu_monotonic_fase_hijau = None
 
-        if all(l in self.data_putaran_berjalan for l in DAFTAR_LAJUR):
-            for nama_lajur in DAFTAR_LAJUR:
-                self.data_putaran.append(self.data_putaran_berjalan[nama_lajur])
-            self.data_putaran_berjalan = {}
+        # Satu putaran selesai setelah semua lajur mendapat hijau setidaknya sekali.
+        # Jika suatu lajur mendapat hijau berulang kali, semua fasenya tetap disimpan.
+        if all(l in self.lajur_tercatat_putaran for l in DAFTAR_LAJUR):
+            self.data_putaran.extend(self.data_putaran_berjalan)
+            self.data_putaran_berjalan = []
+            self.lajur_tercatat_putaran = set()
             self.nomor_putaran += 1
 
     def ekspor_data_spreadsheet(self):
         """Ekspor data putaran yang sudah terekam ke file Excel .xlsx."""
         rekaman = list(self.data_putaran)
-        sementara = dict(self.data_putaran_berjalan)
+        sementara = list(self.data_putaran_berjalan)
 
         # Sertakan fase hijau yang sedang berlangsung agar operator bisa mengekspor
         # data tanpa harus menunggu fase tersebut selesai.
@@ -1066,11 +1070,9 @@ class TrafficGUI(ctk.CTk):
                 berjalan["Durasi Hijau Aktual (detik)"] = max(
                     0, int(round(time.monotonic() - self._waktu_monotonic_fase_hijau))
                 )
-            sementara[berjalan["Jalur"]] = berjalan
+            sementara.append(berjalan)
 
-        for lajur in DAFTAR_LAJUR:
-            if lajur in sementara:
-                rekaman.append(sementara[lajur])
+        rekaman.extend(sementara)
 
         if not rekaman:
             messagebox.showinfo(
