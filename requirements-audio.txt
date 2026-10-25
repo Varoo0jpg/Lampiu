@@ -1,0 +1,6 @@
+# Install in the same Python environment used to run Coba_kamera.py.
+# FFmpeg is an external system dependency and must also be installed on the computer.
+numpy<2
+tensorflow==2.15.1
+tensorflow-hub==0.16.1
+yt-dlp>=2025.3.31
