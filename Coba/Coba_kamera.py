@@ -777,136 +777,102 @@ class TrafficGUI(ctk.CTk):
                                             now - self.waktu_hijau_terakhir[l]))
 
     def hitung_durasi_fase_hijau(self, lajur_target):
-       
-def hitung_durasi_fase_hijau(self, lajur_target):
-    """
-    Mengalokasikan durasi hijau berdasarkan beban PCU.
-    Durasi setiap lajur dibatasi antara FASE_HIJAU_MIN
-    dan FASE_HIJAU_MAX, dengan total hijau 120 detik.
-    """
+        """
+        Membagi total waktu hijau 120 detik secara proporsional terhadap skor,
+        sambil menjaga setiap lajur di antara FASE_HIJAU_MIN dan FASE_HIJAU_MAX.
+        Waktu kuning dihitung terpisah.
+        """
+        if lajur_target not in DAFTAR_LAJUR:
+            raise ValueError(f"Lajur tidak dikenal: {lajur_target!r}")
 
-    TOTAL_WAKTU_SIKLUS = 120
+        total_waktu = 120
+        jumlah_lajur = len(DAFTAR_LAJUR)
+        batas_min = FASE_HIJAU_MIN
+        batas_max = FASE_HIJAU_MAX
 
-    batas_min = FASE_HIJAU_MIN
-    batas_max = FASE_HIJAU_MAX
-
-    lajur_list = DAFTAR_LAJUR
-
-    # Pastikan konfigurasi batas waktu memungkinkan
-    if not (
-        len(lajur_list) * batas_min
-        <= TOTAL_WAKTU_SIKLUS
-        <= len(lajur_list) * batas_max
-    ):
-        raise ValueError(
-            "Batas waktu hijau tidak memungkinkan "
-            "untuk memenuhi total waktu siklus."
-        )
-
-    # 1. Ambil skor PCU setiap lajur.
-    # Skor negatif tidak boleh memengaruhi alokasi.
-    skor = {
-        lajur: max(
-            0.0,
-            float(self.kumpulan_panel[lajur].ambil_skor_bobot())
-        )
-        for lajur in lajur_list
-    }
-
-    # Jika semua skor nol, bagi waktu secara merata.
-    if sum(skor.values()) == 0:
-        alokasi = {
-            lajur: TOTAL_WAKTU_SIKLUS / len(lajur_list)
-            for lajur in lajur_list
-        }
-    else:
-        alokasi = {}
-        lajur_aktif = set(lajur_list)
-        sisa_waktu = float(TOTAL_WAKTU_SIKLUS)
-
-        # 2. Alokasi proporsional dengan pembatasan.
-        while lajur_aktif:
-            total_skor_aktif = sum(
-                skor[lajur] for lajur in lajur_aktif
+        if (
+            batas_min <= 0
+            or batas_max < batas_min
+            or jumlah_lajur * batas_min > total_waktu
+            or jumlah_lajur * batas_max < total_waktu
+        ):
+            raise ValueError(
+                "Batas durasi hijau tidak dapat memenuhi total waktu siklus 120 detik."
             )
 
-            if total_skor_aktif == 0:
-                usulan = {
-                    lajur: sisa_waktu / len(lajur_aktif)
-                    for lajur in lajur_aktif
-                }
-            else:
-                usulan = {
-                    lajur: (
-                        sisa_waktu
-                        * skor[lajur]
-                        / total_skor_aktif
-                    )
-                    for lajur in lajur_aktif
-                }
+        skor = {
+            lajur: max(0.0, float(self.kumpulan_panel[lajur].ambil_skor_bobot()))
+            for lajur in DAFTAR_LAJUR
+        }
 
-            # Batasi satu lajur yang melampaui batas,
-            # lalu hitung ulang pembagian sisa waktu.
-            di_atas = [
-                lajur for lajur in lajur_aktif
-                if usulan[lajur] > batas_max
+        # Setiap lajur mendapat waktu minimum terlebih dahulu.
+        tambahan = {lajur: 0.0 for lajur in DAFTAR_LAJUR}
+        sisa = float(total_waktu - jumlah_lajur * batas_min)
+        kapasitas_per_lajur = float(batas_max - batas_min)
+        aktif = list(DAFTAR_LAJUR)
+
+        # Distribusikan sisa waktu ke lajur aktif. Jika lajur mencapai maksimum,
+        # bekukan alokasinya lalu bagikan kembali sisa waktu kepada lajur lain.
+        while aktif and sisa > 1e-9:
+            total_skor_aktif = sum(skor[lajur] for lajur in aktif)
+            if total_skor_aktif <= 0:
+                bobot = {lajur: 1.0 for lajur in aktif}
+            else:
+                bobot = {lajur: skor[lajur] for lajur in aktif}
+            total_bobot = sum(bobot.values())
+
+            usulan = {
+                lajur: sisa * bobot[lajur] / total_bobot
+                for lajur in aktif
+            }
+            jenuh = [
+                lajur for lajur in aktif
+                if usulan[lajur] >= kapasitas_per_lajur - tambahan[lajur] - 1e-9
             ]
 
-            di_bawah = [
-                lajur for lajur in lajur_aktif
-                if usulan[lajur] < batas_min
-            ]
-
-            if di_atas:
-                lajur = max(di_atas, key=lambda l: usulan[l])
-                alokasi[lajur] = float(batas_max)
-                sisa_waktu -= batas_max
-                lajur_aktif.remove(lajur)
-
-            elif di_bawah:
-                lajur = min(di_bawah, key=lambda l: usulan[l])
-                alokasi[lajur] = float(batas_min)
-                sisa_waktu -= batas_min
-                lajur_aktif.remove(lajur)
-
+            if jenuh:
+                waktu_dibagikan = 0.0
+                for lajur in jenuh:
+                    ruang = max(0.0, kapasitas_per_lajur - tambahan[lajur])
+                    tambahan[lajur] += ruang
+                    waktu_dibagikan += ruang
+                sisa = max(0.0, sisa - waktu_dibagikan)
+                aktif = [lajur for lajur in aktif if lajur not in jenuh]
             else:
-                alokasi.update(usulan)
-                break
+                for lajur in aktif:
+                    tambahan[lajur] += usulan[lajur]
+                sisa = 0.0
 
-    # 3. Ubah ke detik bulat tanpa mengubah total 120 detik.
-    hasil = {
-        lajur: int(alokasi[lajur] // 1)
-        for lajur in lajur_list
-    }
+        durasi_tepat = {
+            lajur: batas_min + tambahan[lajur]
+            for lajur in DAFTAR_LAJUR
+        }
+        hasil = {
+            lajur: int(durasi_tepat[lajur])
+            for lajur in DAFTAR_LAJUR
+        }
+        sisa_detik = total_waktu - sum(hasil.values())
 
-    sisa_detik = TOTAL_WAKTU_SIKLUS - sum(hasil.values())
-
-    # Detik sisa diberikan kepada lajur dengan pecahan terbesar.
-    urutan = sorted(
-        lajur_list,
-        key=lambda l: alokasi[l] - hasil[l],
-        reverse=True
-    )
-
-    while sisa_detik > 0:
-        berubah = False
-
-        for lajur in urutan:
-            if hasil[lajur] < batas_max:
+        urutan = sorted(
+            DAFTAR_LAJUR,
+            key=lambda lajur: (
+                durasi_tepat[lajur] - hasil[lajur],
+                skor[lajur],
+                -DAFTAR_LAJUR.index(lajur),
+            ),
+            reverse=True,
+        )
+        while sisa_detik > 0:
+            kandidat = [lajur for lajur in urutan if hasil[lajur] < batas_max]
+            if not kandidat:
+                raise RuntimeError("Sisa waktu hijau tidak dapat dialokasikan.")
+            for lajur in kandidat:
+                if sisa_detik <= 0:
+                    break
                 hasil[lajur] += 1
                 sisa_detik -= 1
-                berubah = True
 
-                if sisa_detik == 0:
-                    break
-
-        if not berubah:
-            raise ValueError(
-                "Sisa waktu tidak dapat dialokasikan."
-            )
-
-    return hasil[lajur_target]
-
+        return hasil[lajur_target]
 
     def pilih_lajur_berikut(self):
         """[BARU] Menentukan lajur hijau berikutnya setelah fase kuning selesai."""
