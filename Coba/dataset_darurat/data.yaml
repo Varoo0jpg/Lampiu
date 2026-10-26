@@ -1,10 +1,16 @@
-path: D:/Coba/dataset_darurat      # sesuaikan dengan lokasi folder dataset Anda
+# Dataset paths are relative to this file, so the repo works on different PCs.
+path: .
 train: train/images
 val: valid/images
 test: test/images
 
 nc: 5
-names: ['Ambulance', 'Fire_truck', 'Normal_vehicle', 'Police_car', 'Towing_truck']
+names:
+  0: Ambulance
+  1: Fire_truck
+  2: Normal_vehicle
+  3: Police_car
+  4: Towing_truck
 
 roboflow:
   workspace: s-workspace-kc9f0
