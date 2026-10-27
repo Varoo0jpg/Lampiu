@@ -24,14 +24,17 @@ from PIL import Image
 # ===============================================================
 DAFTAR_LAJUR = ["Utara", "Timur", "Selatan", "Barat"]
 
-# Bobot awal setara untuk menghitung jumlah kendaraan per kelas.
-# Ini BUKAN nilai PCU baku; sesuaikan hanya jika ada dasar metodologis.
+# Bobot heuristik untuk skor kepadatan/prioritas lajur.
+# Kendaraan darurat diberi prioritas lebih tinggi; ini bukan standar PCU baku.
 BOBOT_KENDARAAN = {
-    "Ambulance": 1.0,
-    "Fire_truck": 1.0,
-    "Normal_vehicle": 1.0,
-    "Police_car": 1.0,
-    "Towing_truck": 1.0,
+    "Ambulance": 5.0,
+    "Fire_truck": 5.0,
+    "Car": 1.0,
+    "Motorcycle": 0.5,
+    "Police_car": 5.0,
+    "Truck": 1.5,
+    "Towing_truck": 1.5,
+    "Bus": 1.5,
 }
 
 FASE_HIJAU_MIN = 10     # Batas minimal waktu hijau (detik)
@@ -61,42 +64,45 @@ def resource_path(nama):
     return os.path.join(base, nama)
 
 
-# Model hasil training dataset kendaraan darurat (5 kelas).
-# Lokasi default hasil Coba/train_darurat.py:
-# Coba/runs/detect/lampiu_darurat/weights/best.pt
-MODEL_PATH = resource_path(os.path.join(
-    "runs", "detect", "lampiu_darurat", "weights", "best.pt"
-))
+# Model 8 kelas yang digunakan pada komputer pengguna.
+# File smart_traffic_8kelas_test.pt diletakkan di folder yang sama dengan skrip ini.
+MODEL_PATH = resource_path("smart_traffic_8kelas_test.pt")
 CONF = 0.35
 IMGSZ = 416                      # kecil = lebih cepat di CPU
 UKURAN_FRAME = (640, 480)        # ukuran proses deteksi
 UKURAN_TAMPIL = (330, 248)       # ukuran feed di kotak kamera GUI
 
-# Indeks kelas harus sama persis dengan Coba/dataset_darurat/data.yaml.
+# Pemetaan sesuai daftar kelas aktual smart_traffic_8kelas_test.pt.
 KELAS_YOLO = {
     0: "Ambulance",
     1: "Fire_truck",
-    2: "Normal_vehicle",
-    3: "Police_car",
-    4: "Towing_truck",
+    2: "Car",
+    3: "Motorcycle",
+    4: "Police_car",
+    5: "Truck",
+    6: "Towing_truck",
+    7: "Bus",
 }
 
 NAMA_KELAS_MODEL = {
     0: "ambulance",
     1: "fire truck",
-    2: "normal vehicle",
-    3: "police car",
-    4: "towing truck",
+    2: "car",
+    3: "motorcycle",
+    4: "police car",
+    5: "truck",
+    6: "towing truck",
+    7: "bus",
 }
 
 
 def validasi_model_kendaraan(model):
-    """Pastikan bobot yang dimuat adalah model training darurat dengan 5 kelas yang diharapkan."""
+    """Pastikan bobot yang dimuat memiliki 8 kelas dan urutannya sesuai konfigurasi."""
     nama = getattr(model, "names", None)
     if nama is None:
         raise RuntimeError(
             "Model YOLO tidak menyediakan daftar nama kelas. "
-            "Periksa MODEL_PATH dan file best.pt."
+            "Periksa MODEL_PATH dan file smart_traffic_8kelas_test.pt."
         )
 
     for indeks, nama_yang_diharapkan in NAMA_KELAS_MODEL.items():
@@ -110,9 +116,9 @@ def validasi_model_kendaraan(model):
         aktual = str(aktual).strip().lower().replace("_", " ").replace("-", " ") if aktual is not None else ""
         if aktual != nama_yang_diharapkan:
             raise RuntimeError(
-                f"Model pada {MODEL_PATH!r} tidak cocok dengan model 5 kelas kendaraan darurat. "
+                f"Model pada {MODEL_PATH!r} tidak cocok dengan konfigurasi 8 kelas. "
                 f"Kelas indeks {indeks} diharapkan {nama_yang_diharapkan!r}, tetapi ditemukan {aktual!r}. "
-                "Pastikan MODEL_PATH menunjuk ke best.pt hasil training dataset_darurat."
+                "Pastikan MODEL_PATH menunjuk ke smart_traffic_8kelas_test.pt yang benar."
             )
 
 # ROI per lajur (pecahan frame): area antrean di depan kamera. SESUAIKAN per kamera.
@@ -265,17 +271,20 @@ class PanelInputLajur(ctk.CTkFrame):
         # Frame Kontainer Kotak Input
         grid_input = ctk.CTkFrame(self, fg_color="transparent")
         grid_input.pack(fill="x", padx=10, pady=2)
+        # Delapan kelas ditata 4 kolom x 2 baris agar panel tidak melebar.
         grid_input.columnconfigure((0, 1, 2, 3), weight=1)
 
-        # Simpan objek widget entry ke dalam dictionary
         self.kolom_input = {}
-
         for indeks, jenis in enumerate(BOBOT_KENDARAAN.keys()):
-            ctk.CTkLabel(grid_input, text=jenis, font=("Arial", 10)).grid(row=0, column=indeks, padx=2, pady=1)
+            baris_kelas = indeks // 4
+            kolom_kelas = indeks % 4
+            ctk.CTkLabel(
+                grid_input, text=jenis, font=("Arial", 9)
+            ).grid(row=baris_kelas * 2, column=kolom_kelas, padx=2, pady=1)
 
             kotak_teks = ctk.CTkEntry(grid_input, width=45, justify="center")
-            kotak_teks.insert(0, str(random.randint(0, 10)))  # Nilai acak awal
-            kotak_teks.grid(row=1, column=indeks, padx=2, pady=2)
+            kotak_teks.insert(0, str(random.randint(0, 10)))
+            kotak_teks.grid(row=baris_kelas * 2 + 1, column=kolom_kelas, padx=2, pady=2)
             self.kolom_input[jenis] = kotak_teks
 
     def ambil_skor_bobot(self):
