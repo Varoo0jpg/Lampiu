@@ -67,7 +67,7 @@ def resource_path(nama):
 # Model 8 kelas yang digunakan pada komputer pengguna.
 # File smart_traffic_8kelas_test.pt diletakkan di folder yang sama dengan skrip ini.
 MODEL_PATH = resource_path("LASTLASTLAST.pt")
-CONF = 0.20
+CONF = 0.15  # Ambang confidence lebih rendah agar deteksi lebih sensitif
 IMGSZ = 640                    # kecil = lebih cepat di CPU
 UKURAN_FRAME = (640, 480)        # ukuran proses deteksi
 UKURAN_TAMPIL = (330, 248)       # ukuran feed di kotak kamera GUI
