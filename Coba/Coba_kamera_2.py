@@ -64,15 +64,30 @@ def resource_path(nama):
     return os.path.join(base, nama)
 
 
-# Model 8 kelas yang digunakan pada komputer pengguna.
-# File smart_traffic_8kelas_test.pt diletakkan di folder yang sama dengan skrip ini.
-MODEL_PATH = resource_path("smart_traffic_8kelas_test.pt")
-CONF = 0.35
-IMGSZ = 416                      # kecil = lebih cepat di CPU
-UKURAN_FRAME = (640, 480)        # ukuran proses deteksi
-UKURAN_TAMPIL = (330, 248)       # ukuran feed di kotak kamera GUI
+# ===============================================================
+# MODEL DETEKSI 8 KELAS
+# ===============================================================
+# Fine-tuning Motorcycle sebelumnya membuat model terlalu fokus pada
+# Motorcycle. Karena itu, GUI default kembali memakai bobot 8 kelas
+# sebelum fine-tuning. Bobot hasil fine-tuning TIDAK dipakai otomatis.
+#
+# Prioritas:
+# 1. runs/detect/smart_traffic_8kelas/weights/best.pt (model 8 kelas lama)
+# 2. smart_traffic_8kelas_test.pt (salinan model lama)
+#
+# Pastikan kedua file berada pada lokasi relatif terhadap file ini.
+MODEL_KANDIDAT = [
+    resource_path(os.path.join("runs", "detect", "smart_traffic_8kelas", "weights", "best.pt")),
+    resource_path("smart_traffic_8kelas_test.pt"),
+]
+MODEL_PATH = next((p for p in MODEL_KANDIDAT if os.path.isfile(p)), MODEL_KANDIDAT[0])
 
-# Pemetaan sesuai daftar kelas aktual smart_traffic_8kelas_test.pt.
+CONF = 0.25
+IMGSZ = 640
+UKURAN_FRAME = (640, 480)
+UKURAN_TAMPIL = (330, 248)
+
+# Pemetaan kelas tetap; jangan mengubah ID kelas.
 KELAS_YOLO = {
     0: "Ambulance",
     1: "Fire_truck",
@@ -187,8 +202,15 @@ class DetektorKamera(threading.Thread):
     def run(self):
         try:
             from ultralytics import YOLO
+            if not os.path.isfile(MODEL_PATH):
+                raise FileNotFoundError(
+                    "Bobot model 8 kelas tidak ditemukan. Periksa salah satu lokasi berikut:\\n"
+                    + "\\n".join(MODEL_KANDIDAT)
+                )
+            print(f"[MODEL] Memuat bobot 8 kelas: {MODEL_PATH}")
             model = YOLO(MODEL_PATH)
             validasi_model_kendaraan(model)
+            print(f"[MODEL] Kelas terverifikasi: {model.names}")
             self._buka_sumber()
         except Exception as e:
             self.error = repr(e)
@@ -224,7 +246,16 @@ class DetektorKamera(threading.Thread):
                     cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
                     dalam = (not GUNAKAN_ROI) or cv2.pointPolygonTest(poly, (cx, cy), False) >= 0
                     warna = (0, 255, 0) if dalam else (120, 120, 120)
-                    cv2.rectangle(img, (int(x1), int(y1)), (int(x2), int(y2)), warna, 2)
+                    p1 = (int(x1), int(y1))
+                    p2 = (int(x2), int(y2))
+                    cv2.rectangle(img, p1, p2, warna, 2)
+                    confidence = float(box.conf[0]) if box.conf is not None else 0.0
+                    label = f"{jenis.replace('_', ' ')} {confidence:.2f}"
+                    y_label = max(p1[1] - 7, 18)
+                    cv2.putText(
+                        img, label, (p1[0], y_label),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.48, warna, 2, cv2.LINE_AA
+                    )
                     if dalam:
                         hitung[jenis] += 1
                 if GUNAKAN_ROI:
