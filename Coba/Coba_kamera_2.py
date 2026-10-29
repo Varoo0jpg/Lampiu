@@ -197,6 +197,7 @@ class DetektorKamera(threading.Thread):
         self.siap = True
 
         w, h = UKURAN_FRAME
+        waktu_debug_terakhir = 0.0
         while self.running and self.caps:
             imgs = {}
             for lajur, cap in self.caps.items():
@@ -213,6 +214,25 @@ class DetektorKamera(threading.Thread):
             daftar = list(imgs)
             hasil = model([imgs[l] for l in daftar], conf=CONF, imgsz=IMGSZ,
                           classes=list(KELAS_YOLO), verbose=False)
+
+            # DEBUG: ringkasan deteksi tiap 5 detik untuk membantu mengecek
+            # apakah model mendeteksi kelas selain Motorcycle pada feed langsung.
+            waktu_sekarang = time.time()
+            if waktu_sekarang - waktu_debug_terakhir >= 5:
+                for lajur_debug, res_debug in zip(daftar, hasil):
+                    ringkasan = {nama: [] for nama in KELAS_YOLO.values()}
+                    for box_debug in res_debug.boxes:
+                        nama_debug = KELAS_YOLO.get(int(box_debug.cls[0]), "Unknown")
+                        ringkasan.setdefault(nama_debug, []).append(float(box_debug.conf[0]))
+                    terdeteksi = [
+                        f"{nama}={len(nilai)} (conf: {', '.join(f'{c:.2f}' for c in nilai)})"
+                        for nama, nilai in ringkasan.items() if nilai
+                    ]
+                    print(
+                        f"[DEBUG DETEKSI {lajur_debug}] "
+                        + (" | ".join(terdeteksi) if terdeteksi else "tidak ada deteksi")
+                    )
+                waktu_debug_terakhir = waktu_sekarang
 
             for lajur, res in zip(daftar, hasil):
                 img = imgs[lajur]
