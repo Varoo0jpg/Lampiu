@@ -1,4 +1,4 @@
-# Coba_kamera.py
+# Coba_kamera_2.py
 # GUI CustomTkinter (Coba.py) + deteksi kendaraan 4 kamera (YOLO)
 #
 # Instalasi:
@@ -64,10 +64,10 @@ def resource_path(nama):
     return os.path.join(base, nama)
 
 
-# Model 8 kelas yang digunakan pada komputer pengguna.
-# File smart_traffic_8kelas_test.pt diletakkan di folder yang sama dengan skrip ini.
-MODEL_PATH = resource_path("LASTLASTLAST.pt")
-CONF = 0.15  # Ambang confidence lebih rendah agar deteksi lebih sensitif
+# Bobot hasil fine-tuning Training V2 (8 kelas).
+# Letakkan suki.pt di folder yang sama dengan Coba_kamera_2.py.
+MODEL_PATH = resource_path("suki.pt")
+CONF = 0.20  # Baseline confidence untuk evaluasi awal model V2
 IMGSZ = 640                    # kecil = lebih cepat di CPU
 UKURAN_FRAME = (640, 480)        # ukuran proses deteksi
 UKURAN_TAMPIL = (330, 248)       # ukuran feed di kotak kamera GUI
@@ -102,7 +102,18 @@ def validasi_model_kendaraan(model):
     if nama is None:
         raise RuntimeError(
             "Model YOLO tidak menyediakan daftar nama kelas. "
-            "Periksa MODEL_PATH dan file smart_traffic_8kelas_test.pt."
+            "Periksa MODEL_PATH dan pastikan suki.pt merupakan bobot YOLO yang valid."
+        )
+
+    try:
+        jumlah_kelas = len(nama)
+    except TypeError:
+        jumlah_kelas = 0
+
+    if jumlah_kelas != len(NAMA_KELAS_MODEL):
+        raise RuntimeError(
+            f"Model pada {MODEL_PATH!r} harus memiliki tepat 8 kelas, "
+            f"tetapi ditemukan {jumlah_kelas}."
         )
 
     for indeks, nama_yang_diharapkan in NAMA_KELAS_MODEL.items():
@@ -118,7 +129,7 @@ def validasi_model_kendaraan(model):
             raise RuntimeError(
                 f"Model pada {MODEL_PATH!r} tidak cocok dengan konfigurasi 8 kelas. "
                 f"Kelas indeks {indeks} diharapkan {nama_yang_diharapkan!r}, tetapi ditemukan {aktual!r}. "
-                "Pastikan MODEL_PATH menunjuk ke smart_traffic_8kelas_test.pt yang benar."
+                "Pastikan suki.pt adalah hasil Training V2 dengan urutan kelas yang benar."
             )
 
 # ROI per lajur (pecahan frame): area antrean di depan kamera. SESUAIKAN per kamera.
@@ -212,8 +223,14 @@ class DetektorKamera(threading.Thread):
                 continue
 
             daftar = list(imgs)
-            hasil = model([imgs[l] for l in daftar], conf=CONF, imgsz=IMGSZ,
-                          classes=list(KELAS_YOLO), verbose=False)
+            hasil = model(
+                [imgs[l] for l in daftar],
+                conf=CONF,
+                imgsz=IMGSZ,
+                classes=list(KELAS_YOLO),
+                device="cpu",
+                verbose=False,
+            )
 
             # DEBUG: ringkasan deteksi tiap 5 detik untuk membantu mengecek
             # apakah model mendeteksi kelas selain Motorcycle pada feed langsung.
