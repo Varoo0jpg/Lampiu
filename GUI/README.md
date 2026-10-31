@@ -23,7 +23,7 @@ repository/
     └── README.md
 ```
 
-GUI menggunakan `Coba/Nigaa.pt` sebagai checkpoint default. Jika file tidak ditemukan, GUI akan meminta pengguna memilih file `.pt` saat dijalankan. Lokasi khusus juga dapat ditentukan melalui variabel lingkungan `SMART_TRAFFIC_MODEL`.
+GUI menggunakan `GUI/Nigaa.pt` sebagai checkpoint default (satu folder dengan `smart_traffic_gui.py`). Jika file tidak ditemukan, GUI akan meminta pengguna memilih file `.pt` saat dijalankan. Lokasi khusus juga dapat ditentukan melalui variabel lingkungan `SMART_TRAFFIC_MODEL`. Path relatif pada variabel tersebut mengikuti direktori kerja saat aplikasi dijalankan.
 
 ## Instalasi dan menjalankan
 
