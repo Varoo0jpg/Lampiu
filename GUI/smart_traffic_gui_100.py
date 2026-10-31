@@ -29,22 +29,30 @@ from PIL import Image
 # ===============================================================
 DAFTAR_LAJUR = ["Utara", "Timur", "Selatan", "Barat"]
 
-# Bobot heuristik untuk skor kepadatan/prioritas lajur.
-# Kendaraan darurat diberi prioritas lebih tinggi; ini bukan standar PCU baku.
+# Bobot PCU awal untuk simulasi. Nilai harus disitasi/divalidasi terhadap
+# standar empiris yang dipakai dalam paper sebelum dipakai sebagai hasil ilmiah.
+# Prioritas darurat dipisahkan dari PCU dan ditentukan oleh konfirmasi dual-modal.
 BOBOT_KENDARAAN = {
-    "Ambulance": 5.0,
-    "Bus": 1.5,
+    "Ambulance": 1.0,   # kendaraan ringan
+    "Bus": 2.0,         # kendaraan berat
     "Car": 1.0,
-    "Fire engine": 5.0,
+    "Fire engine": 2.0, # kendaraan berat
     "Military": 2.0,
-    "Motorcycle": 0.5,
-    "Police car": 5.0,
-    "Truck": 1.5,
+    "Motorcycle": 0.33,
+    "Police car": 1.0,
+    "Truck": 2.0,
 }
 
-FASE_HIJAU_MIN = 10     # Batas minimal waktu hijau (detik)
-FASE_HIJAU_MAX = 40     # Batas maksimal waktu hijau (detik)
-FASE_KUNING = 3         # Durasi lampu kuning (detik)
+FASE_HIJAU_MIN = 10
+FASE_HIJAU_MAX = 40
+FASE_KUNING = 3
+FASE_ALL_RED = 1
+
+# Siklus 120 detik mencakup seluruh fase clearance untuk empat pendekat.
+TOTAL_WAKTU_SIKLUS = 120
+ALPHA_KOMPENSASI_TUNGGU = 0.01  # PCU tambahan per detik tunggu; parameter awal untuk kalibrasi
+AMBANG_VISUAL_DARURAT = 0.65
+AMBANG_SIRENE = 0.65       # Skor audio heuristik MP3; belum merupakan MFCC/template classifier
 
 # Kode Warna UI Hexadecimal
 HEX_RED = "#e74c3c"
@@ -215,6 +223,7 @@ class DetektorKamera(threading.Thread):
         self.caps = {}
         self.frames = {l: None for l in DAFTAR_LAJUR}
         self.jumlah = {l: {j: 0 for j in BOBOT_KENDARAAN} for l in DAFTAR_LAJUR}
+        self.confidence_visual_darurat = {l: 0.0 for l in DAFTAR_LAJUR}
         self._riwayat = {l: collections.deque(maxlen=5) for l in DAFTAR_LAJUR}
 
     def _buka_sumber(self):
@@ -296,8 +305,10 @@ class DetektorKamera(threading.Thread):
                 img = imgs[lajur]
                 poly = np.array([(int(x * w), int(y * h)) for x, y in ROI[lajur]], np.int32)
                 hitung = {j: 0 for j in BOBOT_KENDARAAN}
+                confidence_darurat = 0.0
                 for box in res.boxes:
                     jenis = KELAS_YOLO[int(box.cls[0])]
+                    confidence_box = float(box.conf[0])
                     x1, y1, x2, y2 = box.xyxy[0].tolist()
                     cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
                     dalam = (not GUNAKAN_ROI) or cv2.pointPolygonTest(poly, (cx, cy), False) >= 0
@@ -305,6 +316,8 @@ class DetektorKamera(threading.Thread):
                     cv2.rectangle(img, (int(x1), int(y1)), (int(x2), int(y2)), warna, 2)
                     if dalam:
                         hitung[jenis] += 1
+                        if jenis in ("Ambulance", "Fire engine"):
+                            confidence_darurat = max(confidence_darurat, confidence_box)
                 if GUNAKAN_ROI:
                     cv2.polylines(img, [poly], True, (0, 255, 255), 2)
 
@@ -319,13 +332,15 @@ class DetektorKamera(threading.Thread):
 
                 with self.lock:
                     self.jumlah[lajur] = median
+                    self.confidence_visual_darurat[lajur] = confidence_darurat
                     self.frames[lajur] = img
 
     def ambil(self):
         with self.lock:
             jumlah = {l: dict(v) for l, v in self.jumlah.items()}
             frames = {l: (None if f is None else f.copy()) for l, f in self.frames.items()}
-        return jumlah, frames
+            confidence = dict(self.confidence_visual_darurat)
+        return jumlah, frames, confidence
 
     def stop(self):
         self.running = False
@@ -366,14 +381,14 @@ class PanelInputLajur(ctk.CTkFrame):
             self.kolom_input[jenis] = kotak_teks
 
     def ambil_skor_bobot(self):
-        """Menghitung skor lajur berdasarkan jumlah kendaraan per kelas. Bobot saat ini setara dan bukan nilai PCU baku."""
+        """Menghitung volume lalu lintas berbobot PCU pada lajur."""
         total_skor = 0.0
         for jenis, bobot in BOBOT_KENDARAAN.items():
             try:
-                jumlah = int(self.kolom_input[jenis].get())
+                jumlah = max(0, int(self.kolom_input[jenis].get()))
                 total_skor += jumlah * bobot
-            except ValueError:
-                total_skor += 0.0
+            except (ValueError, KeyError):
+                continue
         return round(total_skor, 2)
 
     def acak_jumlah_kendaraan(self):
@@ -419,7 +434,8 @@ class TrafficGUI(ctk.CTk):
         self.fase_saat_ini = "HIJAU"     # Status: "HIJAU" atau "KUNING"
         self.lajur_aktif = "Utara"       # Menunjukkan lajur mana yang sedang hijau
         self.hitung_mundur = 10          # Durasi detik yang tersisa
-        self.lajur_terpaksa = None       # Menyimpan antrean paksa lajur dari mode manual
+        self.lajur_terpaksa = None       # Lajur berikutnya; juga dipakai emergency setelah clearance
+        self.confidence_visual_darurat = {l: 0.0 for l in DAFTAR_LAJUR}
 
         # [BARU] State kamera & penjadwalan
         self._id_ticker = None
@@ -1130,7 +1146,8 @@ class TrafficGUI(ctk.CTk):
                     self.kumpulan_panel[l].kunci(False)
                 print("[!] Detektor gagal:", det.error)
                 return
-            jumlah, frames = det.ambil()
+            jumlah, frames, confidence_visual = det.ambil()
+            self.confidence_visual_darurat.update(confidence_visual)
             for l in self.lajur_berkamera:
                 panel = self.kumpulan_panel[l]
                 if l not in det.caps:
@@ -1176,194 +1193,133 @@ class TrafficGUI(ctk.CTk):
 
 
        
+    def skor_lajur_disesuaikan(self, lajur, now=None):
+        """PCU + kompensasi waktu tunggu kumulatif (dalam detik)."""
+        if now is None:
+            now = time.time()
+        pcu = self.kumpulan_panel[lajur].ambil_skor_bobot()
+        waktu_tunggu = max(0.0, now - self.waktu_hijau_terakhir[lajur])
+        return pcu + ALPHA_KOMPENSASI_TUNGGU * waktu_tunggu
+
     def hitung_durasi_fase_hijau(self, lajur_target):
         """
-        Mengalokasikan total 120 detik secara proporsional terhadap skor PCU,
-        dengan batas 10-40 detik per lajur.
-
-        Menggunakan bounded weighted allocation (binary search) agar
-        pembatasan minimum/maksimum tidak membuat sisa waktu mustahil dibagi.
+        Alokasi hijau proporsional terhadap PCU yang sudah dikompensasi waktu tunggu.
+        Siklus 120 detik mencakup 4 fase kuning dan 4 fase all-red.
         """
-        TOTAL_WAKTU_SIKLUS = 120
-        batas_min = FASE_HIJAU_MIN
-        batas_max = FASE_HIJAU_MAX
-        lajur_list = list(DAFTAR_LAJUR)
-
-        if lajur_target not in lajur_list:
+        if lajur_target not in DAFTAR_LAJUR:
             raise ValueError(f"Lajur tidak dikenal: {lajur_target}")
 
-        jumlah_lajur = len(lajur_list)
-        if jumlah_lajur == 0:
-            raise ValueError("DAFTAR_LAJUR tidak boleh kosong.")
+        waktu_clearance = len(DAFTAR_LAJUR) * (FASE_KUNING + FASE_ALL_RED)
+        total_hijau = TOTAL_WAKTU_SIKLUS - waktu_clearance
+        batas_min, batas_max = FASE_HIJAU_MIN, FASE_HIJAU_MAX
+        n = len(DAFTAR_LAJUR)
 
-        if not (
-            jumlah_lajur * batas_min
-            <= TOTAL_WAKTU_SIKLUS
-            <= jumlah_lajur * batas_max
-        ):
-            raise ValueError(
-                "Batas waktu hijau tidak memungkinkan "
-                "untuk memenuhi total waktu siklus."
-            )
+        if not (n * batas_min <= total_hijau <= n * batas_max):
+            raise ValueError("Parameter minimum/maksimum hijau tidak kompatibel dengan siklus dan clearance.")
 
-        # Ambil skor PCU; nilai negatif atau input tidak valid dianggap nol.
-        skor = {}
-        for lajur in lajur_list:
-            try:
-                nilai = float(self.kumpulan_panel[lajur].ambil_skor_bobot())
-                skor[lajur] = nilai if np.isfinite(nilai) and nilai > 0 else 0.0
-            except (KeyError, TypeError, ValueError):
-                skor[lajur] = 0.0
-
+        now = time.time()
+        skor = {l: max(0.0, self.skor_lajur_disesuaikan(l, now)) for l in DAFTAR_LAJUR}
         skor_maks = max(skor.values(), default=0.0)
-        if skor_maks <= 0:
-            bobot = {lajur: 1.0 for lajur in lajur_list}
-        else:
-            # Normalisasi mencegah overflow. Bobot kecil untuk skor nol
-            # memungkinkan sisa waktu terbagi jika lajur berbobot lain
-            # sudah mencapai batas maksimum.
-            bobot = {
-                lajur: max(skor[lajur] / skor_maks, 1e-9)
-                for lajur in lajur_list
-            }
+        bobot = ({l: 1.0 for l in DAFTAR_LAJUR} if skor_maks <= 0 else
+                 {l: max(skor[l] / skor_maks, 1e-9) for l in DAFTAR_LAJUR})
 
         def total_alokasi(faktor):
-            return sum(
-                min(batas_max, max(batas_min, faktor * bobot[lajur]))
-                for lajur in lajur_list
-            )
+            return sum(min(batas_max, max(batas_min, faktor * bobot[l])) for l in DAFTAR_LAJUR)
 
-        # Cari faktor skala yang menghasilkan total tepat 120 detik.
-        faktor_bawah = 0.0
-        faktor_atas = 1.0
-        while total_alokasi(faktor_atas) < TOTAL_WAKTU_SIKLUS:
-            faktor_atas *= 2.0
-
+        lo, hi = 0.0, 1.0
+        while total_alokasi(hi) < total_hijau:
+            hi *= 2.0
         for _ in range(100):
-            faktor_tengah = (faktor_bawah + faktor_atas) / 2.0
-            if total_alokasi(faktor_tengah) < TOTAL_WAKTU_SIKLUS:
-                faktor_bawah = faktor_tengah
+            mid = (lo + hi) / 2.0
+            if total_alokasi(mid) < total_hijau:
+                lo = mid
             else:
-                faktor_atas = faktor_tengah
+                hi = mid
 
-        alokasi = {
-            lajur: min(
-                batas_max,
-                max(batas_min, faktor_atas * bobot[lajur])
-            )
-            for lajur in lajur_list
-        }
+        raw = {l: min(batas_max, max(batas_min, hi * bobot[l])) for l in DAFTAR_LAJUR}
+        result = {l: int(np.floor(raw[l] + 1e-9)) for l in DAFTAR_LAJUR}
+        remaining = total_hijau - sum(result.values())
+        order = sorted(DAFTAR_LAJUR, key=lambda l: raw[l] - result[l], reverse=True)
 
-        # Metode largest remainder untuk menghasilkan detik bulat
-        # tanpa melanggar batas minimum/maksimum.
-        hasil = {
-            lajur: int(np.floor(alokasi[lajur] + 1e-9))
-            for lajur in lajur_list
-        }
-        sisa_detik = TOTAL_WAKTU_SIKLUS - sum(hasil.values())
-
-        urutan = sorted(
-            lajur_list,
-            key=lambda lajur: alokasi[lajur] - hasil[lajur],
-            reverse=True,
-        )
-
-        while sisa_detik > 0:
-            ada_perubahan = False
-            for lajur in urutan:
-                if hasil[lajur] < batas_max:
-                    hasil[lajur] += 1
-                    sisa_detik -= 1
-                    ada_perubahan = True
-                    if sisa_detik == 0:
+        while remaining > 0:
+            changed = False
+            for l in order:
+                if result[l] < batas_max:
+                    result[l] += 1
+                    remaining -= 1
+                    changed = True
+                    if remaining == 0:
                         break
+            if not changed:
+                raise ValueError("Sisa durasi hijau tidak dapat dialokasikan.")
 
-            if not ada_perubahan:
-                raise ValueError("Sisa detik tidak dapat dialokasikan.")
+        if sum(result.values()) != total_hijau or any(not batas_min <= v <= batas_max for v in result.values()):
+            raise ValueError("Hasil alokasi hijau melanggar total siklus atau batas fase.")
+        return result[lajur_target]
 
-        if sum(hasil.values()) != TOTAL_WAKTU_SIKLUS:
-            raise ValueError("Total alokasi hijau tidak sama dengan 120 detik.")
-        if any(not batas_min <= hasil[lajur] <= batas_max for lajur in lajur_list):
-            raise ValueError("Durasi hijau lajur berada di luar batas yang ditentukan.")
+    def emergency_dual_confirmed(self, lajur):
+        """Konfirmasi AND: confidence YOLO darurat dan skor audio harus sama-sama lolos."""
+        visual = self.confidence_visual_darurat.get(lajur, 0.0) > AMBANG_VISUAL_DARURAT
+        audio_value = self.audio_confidence_values.get(lajur)
+        audio = audio_value is not None and audio_value > AMBANG_SIRENE
+        return visual and audio
 
-        return hasil[lajur_target]
+    def lajur_darurat_terkonfirmasi(self):
+        kandidat = [l for l in DAFTAR_LAJUR if self.emergency_dual_confirmed(l)]
+        if not kandidat:
+            return None
+        return max(kandidat, key=lambda l: (
+            self.confidence_visual_darurat.get(l, 0.0),
+            self.audio_confidence_values.get(l, 0.0),
+            self.skor_lajur_disesuaikan(l)
+        ))
 
     def pilih_lajur_berikut(self):
-        """[BARU] Menentukan lajur hijau berikutnya setelah fase kuning selesai."""
+        """Prioritas emergency hanya aktif jika visual AND audio terkonfirmasi."""
+        if self.lajur_terpaksa:
+            return self.lajur_terpaksa
+
         if self.var_mode.get() == "MANUAL" or PILIH_LAJUR_BERIKUT == "BERGILIR":
             i = DAFTAR_LAJUR.index(self.lajur_aktif)
             return DAFTAR_LAJUR[(i + 1) % len(DAFTAR_LAJUR)]
 
-        # OTOMATIS: prioritas bertingkat sebelum skor kepadatan biasa.
-        # Rank 3: kendaraan darurat + sirene pada lajur yang sama.
-        # Rank 2: kendaraan darurat terdeteksi YOLO.
-        # Rank 1: audio sirene MP3 terindikasi.
-        # Kepadatan: total bobot seluruh kelas >= ambang kapasitas lajur.
-        now = time.time()
+        emergency_lane = self.lajur_darurat_terkonfirmasi()
+        if emergency_lane is not None and emergency_lane != self.lajur_aktif:
+            return emergency_lane
+
         kandidat = [l for l in DAFTAR_LAJUR if l != self.lajur_aktif]
-        peringkat = {}
-        for lajur in kandidat:
-            panel = self.kumpulan_panel[lajur]
-            try:
-                data = {j: max(0, int(panel.kolom_input[j].get())) for j in BOBOT_KENDARAAN}
-            except (ValueError, KeyError):
-                data = {j: 0 for j in BOBOT_KENDARAAN}
-            darurat = sum(data.get(j, 0) for j in ("Ambulance", "Fire engine", "Police car")) > 0
-            audio = (self.audio_confidence_values.get(lajur) or 0.0) >= AMBANG_SIRENE
-            peringkat[lajur] = 3 if darurat and audio else 2 if darurat else 1 if audio else 0
-
-        # Keadaan darurat/sirene mengungguli kepadatan.
-        prioritas = [l for l in kandidat if peringkat[l] > 0]
-        if prioritas:
-            return max(
-                prioritas,
-                key=lambda l: (peringkat[l],
-                               self.kumpulan_panel[l].ambil_skor_bobot(),
-                               now - self.waktu_hijau_terakhir[l])
-            )
-
-        # Semua kombinasi kelas kendaraan dapat memicu kepadatan.
-        # Contoh 2 Car + 2 Truck = 5.0 hanya menjadi dasar penetapan ambang,
-        # bukan syarat kombinasi kelas yang wajib dipenuhi.
-        padat = [
-            l for l in kandidat
-            if self.kumpulan_panel[l].ambil_skor_bobot() >= AMBANG_KAPASITAS_LAJUR
-        ]
-        if padat:
-            return max(
-                padat,
-                key=lambda l: (self.kumpulan_panel[l].ambil_skor_bobot(),
-                               now - self.waktu_hijau_terakhir[l])
-            )
-
-        # Jika tidak ada pemicu khusus, pertahankan anti-starvation lalu skor tertinggi.
-        terlama = max(kandidat, key=lambda l: now - self.waktu_hijau_terakhir[l])
-        if now - self.waktu_hijau_terakhir[terlama] > BATAS_TUNGGU_MAKS:
-            return terlama
-        return self.tentukan_lajur_paling_padat(self.lajur_aktif)
+        now = time.time()
+        return max(kandidat, key=lambda l: (
+            self.skor_lajur_disesuaikan(l, now),
+            now - self.waktu_hijau_terakhir[l]
+        ))
 
     def siklus_transisi_fase(self):
-        """[PERBAIKAN] Method ini dipanggil ticker tetapi tidak ada di kode asli
-        (akan menyebabkan AttributeError saat hitung mundur habis)."""
+        """Urutan aman: HIJAU -> KUNING -> ALL_RED -> HIJAU."""
         if self.fase_saat_ini == "HIJAU":
             self.fase_saat_ini = "KUNING"
             self.hitung_mundur = FASE_KUNING
-        else:
-            # kuning selesai -> pindah ke lajur berikutnya
-            self.waktu_hijau_terakhir[self.lajur_aktif] = time.time()
-            if self.lajur_terpaksa:
-                lajur_baru = self.lajur_terpaksa
-                self.lajur_terpaksa = None
-            else:
-                lajur_baru = self.pilih_lajur_berikut()
-            self.lajur_aktif = lajur_baru
-            self.fase_saat_ini = "HIJAU"
-            self.hitung_mundur = self.hitung_durasi_fase_hijau(self.lajur_aktif)
+            return
+
+        if self.fase_saat_ini == "KUNING":
+            self.fase_saat_ini = "ALL_RED"
+            self.hitung_mundur = FASE_ALL_RED
+            return
+
+        # All-red selesai: baru pindahkan hak jalan ke pendekat berikutnya.
+        lajur_baru = self.pilih_lajur_berikut()
+        self.lajur_aktif = lajur_baru
+        self.lajur_terpaksa = None
+        self.fase_saat_ini = "HIJAU"
+        self.waktu_hijau_terakhir[lajur_baru] = time.time()
+        self.hitung_mundur = self.hitung_durasi_fase_hijau(lajur_baru)
 
     def sinkronisasi_tampilan_ui(self):
         """Memperbarui warna bulatan lampu, countdown, dan bingkai kamera."""
         for lajur, widget in self.visual_lampu.items():
-            if lajur == self.lajur_aktif:
+            if self.fase_saat_ini == "ALL_RED":
+                warna = HEX_RED
+            elif lajur == self.lajur_aktif:
                 warna = HEX_GREEN if self.fase_saat_ini == "HIJAU" else HEX_YELLOW
             else:
                 warna = HEX_RED
@@ -1372,7 +1328,7 @@ class TrafficGUI(ctk.CTk):
             self.kotak_kamera[lajur].configure(border_color=warna if self.simulasi_aktif else "#555555")
 
         if self.simulasi_aktif:
-            warna_teks = HEX_GREEN if self.fase_saat_ini == "HIJAU" else HEX_YELLOW
+            warna_teks = HEX_GREEN if self.fase_saat_ini == "HIJAU" else (HEX_YELLOW if self.fase_saat_ini == "KUNING" else HEX_RED)
             self.txt_status.configure(text=f"Status: {self.fase_saat_ini} @ {self.lajur_aktif}", text_color=warna_teks)
             self.txt_timer.configure(text=f"{max(self.hitung_mundur, 0)} dtk", text_color="#ffffff")
         else:
@@ -1383,9 +1339,18 @@ class TrafficGUI(ctk.CTk):
     # INTERACTION & TIMING EVENTS
     # -----------------------------------------------------------
     def engine_simulation_ticker(self):
-        """Ticker mandiri yang berjalan mundur 1 detik secara periodik."""
+        """Ticker fase simulasi dengan emergency preemption dual-modal."""
         if not self.simulasi_aktif:
             return
+
+        emergency_lane = self.lajur_darurat_terkonfirmasi()
+        if emergency_lane is not None and emergency_lane != self.lajur_aktif:
+            self.lajur_terpaksa = emergency_lane
+            # Jangan melompati clearance: preemption dimulai melalui kuning,
+            # kemudian ALL_RED, baru pendekat darurat memperoleh hijau.
+            if self.fase_saat_ini == "HIJAU":
+                self.fase_saat_ini = "KUNING"
+                self.hitung_mundur = FASE_KUNING
 
         self.hitung_mundur -= 1
 
