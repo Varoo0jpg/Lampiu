@@ -1178,9 +1178,11 @@ class TrafficGUI(ctk.CTk):
        
     def hitung_durasi_fase_hijau(self, lajur_target):
         """
-        Mengalokasikan durasi hijau berdasarkan beban PCU.
-        Setiap lajur mendapat waktu antara FASE_HIJAU_MIN dan
-        FASE_HIJAU_MAX, dengan total alokasi hijau 120 detik.
+        Mengalokasikan total 120 detik secara proporsional terhadap skor PCU,
+        dengan batas 10-40 detik per lajur.
+
+        Menggunakan bounded weighted allocation (binary search) agar
+        pembatasan minimum/maksimum tidak membuat sisa waktu mustahil dibagi.
         """
         TOTAL_WAKTU_SIKLUS = 120
         batas_min = FASE_HIJAU_MIN
@@ -1194,7 +1196,6 @@ class TrafficGUI(ctk.CTk):
         if jumlah_lajur == 0:
             raise ValueError("DAFTAR_LAJUR tidak boleh kosong.")
 
-        # Pastikan total waktu bisa dibagi tanpa melanggar batas tiap lajur.
         if not (
             jumlah_lajur * batas_min
             <= TOTAL_WAKTU_SIKLUS
@@ -1214,65 +1215,47 @@ class TrafficGUI(ctk.CTk):
             except (KeyError, TypeError, ValueError):
                 skor[lajur] = 0.0
 
-        # Alokasi berbobot dengan batas minimum dan maksimum.
-        alokasi = {}
-        lajur_aktif = list(lajur_list)
-        sisa_waktu = float(TOTAL_WAKTU_SIKLUS)
+        skor_maks = max(skor.values(), default=0.0)
+        if skor_maks <= 0:
+            bobot = {lajur: 1.0 for lajur in lajur_list}
+        else:
+            # Normalisasi mencegah overflow. Bobot kecil untuk skor nol
+            # memungkinkan sisa waktu terbagi jika lajur berbobot lain
+            # sudah mencapai batas maksimum.
+            bobot = {
+                lajur: max(skor[lajur] / skor_maks, 1e-9)
+                for lajur in lajur_list
+            }
 
-        while lajur_aktif:
-            total_skor = sum(skor[lajur] for lajur in lajur_aktif)
+        def total_alokasi(faktor):
+            return sum(
+                min(batas_max, max(batas_min, faktor * bobot[lajur]))
+                for lajur in lajur_list
+            )
 
-            if total_skor > 0:
-                usulan = {
-                    lajur: sisa_waktu * skor[lajur] / total_skor
-                    for lajur in lajur_aktif
-                }
+        # Cari faktor skala yang menghasilkan total tepat 120 detik.
+        faktor_bawah = 0.0
+        faktor_atas = 1.0
+        while total_alokasi(faktor_atas) < TOTAL_WAKTU_SIKLUS:
+            faktor_atas *= 2.0
+
+        for _ in range(100):
+            faktor_tengah = (faktor_bawah + faktor_atas) / 2.0
+            if total_alokasi(faktor_tengah) < TOTAL_WAKTU_SIKLUS:
+                faktor_bawah = faktor_tengah
             else:
-                # Jika semua skor tersisa nol, bagi rata.
-                usulan = {
-                    lajur: sisa_waktu / len(lajur_aktif)
-                    for lajur in lajur_aktif
-                }
+                faktor_atas = faktor_tengah
 
-            # Kunci semua alokasi yang melampaui batas, lalu hitung ulang
-            # pembagian untuk lajur yang belum ditetapkan.
-            di_atas = [
-                lajur for lajur in lajur_aktif
-                if usulan[lajur] > batas_max
-            ]
-            di_bawah = [
-                lajur for lajur in lajur_aktif
-                if usulan[lajur] < batas_min
-            ]
+        alokasi = {
+            lajur: min(
+                batas_max,
+                max(batas_min, faktor_atas * bobot[lajur])
+            )
+            for lajur in lajur_list
+        }
 
-            if not di_atas and not di_bawah:
-                alokasi.update(usulan)
-                break
-
-            for lajur in di_atas:
-                alokasi[lajur] = float(batas_max)
-                sisa_waktu -= batas_max
-
-            for lajur in di_bawah:
-                alokasi[lajur] = float(batas_min)
-                sisa_waktu -= batas_min
-
-            lajur_dikunci = set(di_atas + di_bawah)
-            lajur_aktif = [
-                lajur for lajur in lajur_aktif
-                if lajur not in lajur_dikunci
-            ]
-
-            # Perlindungan jika perubahan konfigurasi membuat alokasi mustahil.
-            if sisa_waktu < -1e-9:
-                raise ValueError("Alokasi waktu hijau melebihi total waktu.")
-            if lajur_aktif and sisa_waktu < len(lajur_aktif) * batas_min - 1e-9:
-                raise ValueError("Sisa waktu tidak cukup untuk batas minimum.")
-            if lajur_aktif and sisa_waktu > len(lajur_aktif) * batas_max + 1e-9:
-                raise ValueError("Sisa waktu melebihi batas maksimum yang tersedia.")
-
-        # Konversi ke detik bulat; distribusikan sisa detik berdasarkan
-        # pecahan terbesar tanpa melewati batas maksimum.
+        # Metode largest remainder untuk menghasilkan detik bulat
+        # tanpa melanggar batas minimum/maksimum.
         hasil = {
             lajur: int(np.floor(alokasi[lajur] + 1e-9))
             for lajur in lajur_list
@@ -1298,7 +1281,6 @@ class TrafficGUI(ctk.CTk):
             if not ada_perubahan:
                 raise ValueError("Sisa detik tidak dapat dialokasikan.")
 
-        # Validasi akhir agar hasil selalu memenuhi aturan.
         if sum(hasil.values()) != TOTAL_WAKTU_SIKLUS:
             raise ValueError("Total alokasi hijau tidak sama dengan 120 detik.")
         if any(not batas_min <= hasil[lajur] <= batas_max for lajur in lajur_list):
@@ -1418,14 +1400,24 @@ class TrafficGUI(ctk.CTk):
     def action_mulai_simulasi(self):
         if self.simulasi_aktif:
             return
+
+        # Hitung lebih dahulu sebelum mengubah status/tombol agar kegagalan
+        # perhitungan tidak meninggalkan GUI dalam kondisi setengah aktif.
+        try:
+            durasi_awal = self.hitung_durasi_fase_hijau(self.lajur_aktif)
+        except (ValueError, KeyError, TypeError) as exc:
+            messagebox.showerror(
+                "Gagal Memulai Simulasi",
+                f"Durasi fase hijau tidak dapat dihitung.\\n\\nDetail: {exc}"
+            )
+            return
+
+        self.fase_saat_ini = "HIJAU"
+        self.hitung_mundur = durasi_awal
         self.simulasi_aktif = True
         self.btn_mulai.configure(state="disabled")
         self.btn_stop.configure(state="normal")
         self.btn_acak.configure(state="disabled")
-
-        # Reset fase awal dan hitung durasi hijau lajur aktif dari data saat ini
-        self.fase_saat_ini = "HIJAU"
-        self.hitung_mundur = self.hitung_durasi_fase_hijau(self.lajur_aktif)
 
         self.sinkronisasi_tampilan_ui()
         self._id_ticker = self.after(1000, self.engine_simulation_ticker)
