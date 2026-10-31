@@ -1379,6 +1379,8 @@ class TrafficGUI(ctk.CTk):
 
         self.fase_saat_ini = "HIJAU"
         self.hitung_mundur = durasi_awal
+        self.lajur_terpaksa = None
+        self.waktu_hijau_terakhir[self.lajur_aktif] = time.time()
         self.simulasi_aktif = True
         self.btn_mulai.configure(state="disabled")
         self.btn_stop.configure(state="normal")
