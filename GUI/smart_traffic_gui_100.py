@@ -260,15 +260,31 @@ class DetektorKamera(threading.Thread):
         waktu_debug_terakhir = 0.0
         while self.running and self.caps:
             imgs = {}
-            for lajur, cap in self.caps.items():
-                ok, img = cap.read()
+            for lajur, cap in list(self.caps.items()):
+                if not self.running:
+                    break
+                try:
+                    ok, img = cap.read()
+                except cv2.error as exc:
+                    # Backend FFmpeg/OpenCV dapat melempar exception C++ ketika
+                    # stream jaringan terputus. Lepas hanya kamera yang gagal;
+                    # jangan biarkan exception mematikan seluruh thread deteksi.
+                    print(f"[!] Pembacaan kamera lajur {lajur} gagal: {exc}")
+                    try:
+                        cap.release()
+                    except Exception:
+                        pass
+                    self.caps.pop(lajur, None)
+                    continue
                 if not ok:
-                    if isinstance(SUMBER_KAMERA[lajur], str):     # file video: ulang
+                    if isinstance(SUMBER_KAMERA[lajur], str) and not SUMBER_KAMERA[lajur].lower().startswith(("http://", "https://")):
                         cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                     continue
                 imgs[lajur] = cv2.resize(img, UKURAN_FRAME)
+            if not self.running:
+                break
             if not imgs:
-                time.sleep(0.02)
+                time.sleep(0.1)
                 continue
 
             daftar = list(imgs)
@@ -335,6 +351,15 @@ class DetektorKamera(threading.Thread):
                     self.confidence_visual_darurat[lajur] = confidence_darurat
                     self.frames[lajur] = img
 
+        # VideoCapture dilepas oleh thread pemiliknya setelah loop selesai,
+        # bukan dari thread GUI ketika cap.read() mungkin masih berjalan.
+        for cap in list(self.caps.values()):
+            try:
+                cap.release()
+            except Exception:
+                pass
+        self.caps.clear()
+
     def ambil(self):
         with self.lock:
             jumlah = {l: dict(v) for l, v in self.jumlah.items()}
@@ -343,10 +368,18 @@ class DetektorKamera(threading.Thread):
         return jumlah, frames, confidence
 
     def stop(self):
+        """Minta thread berhenti; jangan release VideoCapture dari thread GUI."""
         self.running = False
-        time.sleep(0.1)
-        for cap in self.caps.values():
-            cap.release()
+        if self.is_alive() and threading.current_thread() is not self:
+            self.join(timeout=3.0)
+        # Jika thread sudah berhenti sebelum sempat melakukan cleanup normal.
+        if not self.is_alive():
+            for cap in list(self.caps.values()):
+                try:
+                    cap.release()
+                except Exception:
+                    pass
+            self.caps.clear()
 
 # BANYUUU
 # ===============================================================
@@ -439,6 +472,8 @@ class TrafficGUI(ctk.CTk):
 
         # [BARU] State kamera & penjadwalan
         self._id_ticker = None
+        self._camera_poll_after_id = None
+        self._closing = False
         self.waktu_hijau_terakhir = {l: time.time() for l in DAFTAR_LAJUR}
         self.detektor = None
         self.kotak_kamera = {}
@@ -1132,10 +1167,13 @@ class TrafficGUI(ctk.CTk):
             self.label_kamera[l].configure(text=self._teks_kamera(l, "Memuat model YOLO..."))
         self.detektor = DetektorKamera()
         self.detektor.start()
-        self.after(200, self.poll_kamera)
+        self._camera_poll_after_id = self.after(200, self.poll_kamera)
 
     def poll_kamera(self):
         """Dipanggil berkala di thread GUI: ambil hasil deteksi, perbarui feed dan angka."""
+        self._camera_poll_after_id = None
+        if self._closing:
+            return
         det = self.detektor
         if det is None:
             return
@@ -1168,13 +1206,24 @@ class TrafficGUI(ctk.CTk):
                 if jumlah[l] != self.jumlah_terakhir.get(l):
                     self.jumlah_terakhir[l] = jumlah[l]
                     panel.set_jumlah(jumlah[l])
-        self.after(120, self.poll_kamera)
+        if not self._closing:
+            self._camera_poll_after_id = self.after(120, self.poll_kamera)
 
     def tutup_aplikasi(self):
-        if self._id_ticker is not None:
-            self.after_cancel(self._id_ticker)
-        if self._research_after_id is not None:
-            self.after_cancel(self._research_after_id)
+        if self._closing:
+            return
+        self._closing = True
+
+        # Batalkan callback GUI sebelum widget dihancurkan.
+        for attr in ("_id_ticker", "_research_after_id", "_camera_poll_after_id"):
+            callback_id = getattr(self, attr, None)
+            if callback_id is not None:
+                try:
+                    self.after_cancel(callback_id)
+                except Exception:
+                    pass
+                setattr(self, attr, None)
+
         if self.detektor is not None:
             self.detektor.stop()
         self.destroy()
@@ -1413,18 +1462,22 @@ class TrafficGUI(ctk.CTk):
             self.txt_timer.configure(text=f"{self.hitung_mundur} dtk")
 
     def action_pemicu_manual_lajur(self, lajur_tujuan):
-        """Memaksa sistem memindahkan lampu hijau ke lajur pilihan (hanya Mode Manual)."""
-        if self.var_mode.get() != "MANUAL" or not self.simulasi_aktif:
+        """Meminta lajur pilihan mendapat giliran hijau berikutnya saat simulasi aktif."""
+        if not self.simulasi_aktif or lajur_tujuan not in DAFTAR_LAJUR:
             return
 
-        # Jika lajur yang diklik sudah sedang hijau, abaikan
+        # Tombol Paksa Hijau berlaku pada mode OTOMATIS maupun MANUAL.
+        # Jika lajur tersebut sudah hijau, tidak perlu membuat transisi baru.
         if lajur_tujuan == self.lajur_aktif and self.fase_saat_ini == "HIJAU":
             return
 
-        # Pemicu transisi kuning terlebih dahulu sebelum pindah
-        self.fase_saat_ini = "KUNING"
-        self.hitung_mundur = FASE_KUNING
+        # Simpan target. Jika transisi sudah berjalan, jangan reset countdown:
+        # target akan diterapkan setelah KUNING dan ALL_RED selesai.
         self.lajur_terpaksa = lajur_tujuan
+        if self.fase_saat_ini == "HIJAU":
+            self.fase_saat_ini = "KUNING"
+            self.hitung_mundur = FASE_KUNING
+
         self.sinkronisasi_tampilan_ui()
 
 
