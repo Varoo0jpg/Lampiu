@@ -16,7 +16,7 @@ import sys
 import threading
 import time
 import urllib.request
-from datetime datetime
+from datetime import datetime
 from tkinter import filedialog, messagebox, ttk
 
 import customtkinter as ctk
