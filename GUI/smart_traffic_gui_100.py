@@ -1408,7 +1408,7 @@ class TrafficGUI(ctk.CTk):
         except (ValueError, KeyError, TypeError) as exc:
             messagebox.showerror(
                 "Gagal Memulai Simulasi",
-                f"Durasi fase hijau tidak dapat dihitung.\\n\\nDetail: {exc}"
+                f"Durasi fase hijau tidak dapat dihitung.\n\nDetail: {exc}"
             )
             return
 
