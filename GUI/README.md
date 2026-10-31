@@ -1,41 +1,32 @@
 # Smart Traffic Light GUI — YOLO26n 100 Epochs
 
-Aplikasi GUI pemantauan lalu lintas dengan empat feed kamera, deteksi objek YOLO, dan simulasi kendali lampu lalu lintas.
+Dokumentasi untuk aplikasi pada folder ini, terutama `smart_traffic_gui_100.py`. Aplikasi dibuat dengan CustomTkinter dan ditujukan untuk simulasi, eksperimen, serta pengumpulan data penelitian. Aplikasi ini **bukan pengendali lampu lalu lintas yang siap dipasang pada jalan umum**.
 
-## Pembaruan model dan deteksi
+## File utama
 
-GUI sekarang menggunakan checkpoint **YOLO26n hasil training 100 epoch** dari repositori [Yolo26n_100ep](https://github.com/Varoo0jpg/Yolo26n_100ep).
+| File | Fungsi |
+|---|---|
+| `smart_traffic_gui_100.py` | GUI simulasi empat lajur dengan deteksi YOLO26n 100 epoch, prioritas kendaraan, dan input audio MP3 |
+| `smart_traffic_gui.py` | Versi GUI sebelumnya; tidak memuat seluruh fitur tambahan pada versi 100 epoch |
+| `requirements.txt` | Dependensi dasar proyek GUI |
+
+Jalankan versi terbaru yang didokumentasikan di sini:
+
+```bash
+python GUI/smart_traffic_gui_100.py
+```
+
+## Model YOLO26n 100 epoch
+
+Aplikasi menggunakan checkpoint hasil training pada repositori [Yolo26n_100ep](https://github.com/Varoo0jpg/Yolo26n_100ep).
 
 - Sumber checkpoint: `weights/best.pt` pada repositori training.
-- Nama lokal yang digunakan GUI: `GUI/100ep.pt`.
-- Jika `100ep.pt` belum tersedia, aplikasi mengunduh checkpoint secara otomatis saat pertama dijalankan dan menyimpannya di folder GUI.
-- Jika unduhan otomatis gagal, aplikasi menyediakan dialog untuk memilih file checkpoint secara manual.
+- Nama file lokal default: `100ep.pt`, disimpan di folder `GUI`.
+- Jika checkpoint belum ada, aplikasi mencoba mengunduhnya otomatis dari repositori training.
+- Jika unduhan gagal, pengguna dapat memilih file checkpoint `.pt` secara manual melalui dialog aplikasi.
 - Variabel lingkungan `SMART_TRAFFIC_MODEL` dapat digunakan untuk menunjuk ke checkpoint lokal lain.
 
-> File model tidak disalin ke repositori GUI sebagai file biner. Aplikasi mengambil checkpoint dari repositori training saat diperlukan, sehingga ukuran repositori GUI tetap lebih ringan.
-
-## Sensitivitas deteksi
-
-Panel **SENSITIVITAS DETEKSI** pada sisi kiri GUI menyediakan dua pengaturan yang diterapkan langsung pada proses inferensi:
-
-| Pengaturan | Nilai awal | Rentang GUI | Dampak |
-|---|---:|---:|---|
-| Confidence | 0.15 | 0.05–0.80 | Nilai lebih rendah menerima lebih banyak kandidat deteksi, tetapi dapat menambah false positive. |
-| NMS IoU | 0.60 | 0.30–0.90 | Nilai lebih tinggi membuat proses NMS lebih toleran terhadap kotak yang saling tumpang tindih. |
-
-Nilai awal 0.15 dan 0.60 merupakan titik awal untuk pengujian yang lebih sensitif, bukan jaminan akurasi terbaik. Uji beberapa kondisi kamera dan bandingkan false positive serta objek yang terlewat sebelum menetapkan konfigurasi penelitian.
-
-## Fitur
-
-- Tampilan empat lajur: Utara, Timur, Selatan, dan Barat.
-- Deteksi YOLO pada feed kamera/video dan input manual jika kamera tidak tersedia.
-- Validasi jumlah serta urutan delapan kelas model sebelum inferensi.
-- Pengaturan confidence dan NMS IoU secara langsung melalui slider GUI.
-- Simulasi fase lampu hijau/kuning dan mode otomatis/manual.
-- Panel data penelitian dengan pencatatan snapshot per detik untuk setiap lajur.
-- Ekspor data observasi mentah dan ringkasan statistik per lajur ke CSV.
-
-## Kelas yang dideteksi
+Model harus memiliki tepat delapan kelas dengan urutan berikut. Aplikasi memvalidasi jumlah dan nama kelas sebelum inferensi.
 
 | ID | Kelas |
 |---:|---|
@@ -48,81 +39,111 @@ Nilai awal 0.15 dan 0.60 merupakan titik awal untuk pengujian yang lebih sensiti
 | 6 | Police car |
 | 7 | Truck |
 
-## Struktur folder
-
-```text
-repository/
-└── GUI/
-    ├── smart_traffic_gui.py
-    ├── 100ep.pt          # dibuat otomatis saat unduhan pertama
-    ├── requirements.txt
-    └── README.md
-```
-
-## Instalasi dan menjalankan
+## Instalasi
 
 Jalankan dari direktori utama repository:
 
 ```bash
+python -m pip install --upgrade pip
 python -m pip install -r GUI/requirements.txt
-python GUI/smart_traffic_gui.py
+python -m pip install librosa
 ```
 
-Koneksi internet diperlukan saat pertama kali aplikasi mengunduh model. Setelah file `GUI/100ep.pt` tersedia, aplikasi dapat memuatnya secara lokal.
+Dependensi `librosa` diperlukan untuk analisis audio MP3 pada `smart_traffic_gui_100.py`. Untuk menghindari pemasangan ke interpreter Python yang berbeda, gunakan interpreter virtual environment yang sama untuk instalasi dan menjalankan aplikasi.
 
-## Menggunakan checkpoint lokal lain
+Contoh Windows (sesuaikan path virtual environment):
+
+```bat
+.venv\Scripts\python.exe -m pip install -r GUI\requirements.txt
+.venv\Scripts\python.exe -m pip install librosa
+.venv\Scripts\python.exe GUI\smart_traffic_gui_100.py
+```
+
+Jika virtual environment berada di dalam folder lain, gunakan path lengkap ke `python.exe` milik environment tersebut pada ketiga perintah.
+
+## Konfigurasi model lokal
 
 Windows CMD:
 
 ```bat
-set SMART_TRAFFIC_MODEL=C:\\path\\to\\model.pt
-python GUI\\smart_traffic_gui.py
+set SMART_TRAFFIC_MODEL=C:/path/to/best.pt
+python GUI/smart_traffic_gui_100.py
 ```
 
 PowerShell:
 
 ```powershell
-$env:SMART_TRAFFIC_MODEL = "C:\\path\\to\\model.pt"
-python GUI\\smart_traffic_gui.py
+$env:SMART_TRAFFIC_MODEL = "C:/path/to/best.pt"
+python GUI/smart_traffic_gui_100.py
 ```
 
-## Konfigurasi kamera
+Jika `SMART_TRAFFIC_MODEL` diatur tetapi file tidak ditemukan, aplikasi tidak menggunakan unduhan otomatis sebagai pengganti; pastikan path tersebut benar atau hapus variabel itu agar mekanisme unduhan default dapat digunakan.
 
-Ubah dictionary `SUMBER_KAMERA` pada bagian konfigurasi di `smart_traffic_gui.py`. Nilai yang didukung:
+## Kamera dan sumber video
 
-- indeks kamera lokal, misalnya `0` atau `1`;
-- path video lokal, misalnya `videos/utara.mp4`;
-- URL video/live yang dapat dibaca resolver `yt-dlp`;
-- `None` untuk memakai input manual pada lajur tersebut.
+Pada kode saat ini, seluruh sumber kamera bawaan bernilai `None`. Karena itu, feed kamera tidak otomatis aktif setelah aplikasi dibuka. Atur dictionary `SUMBER_KAMERA` di bagian konfigurasi awal `smart_traffic_gui_100.py` menggunakan perangkat atau file video yang benar-benar tersedia.
 
-## Empat sumber video uji pada GUI
+Contoh kamera USB:
 
-Keempat kotak kamera pada GUI sudah diisi dengan sumber terpisah. Dua sumber pertama merupakan POV yang dipilih untuk skenario penelitian; dua sumber terakhir adalah feed lalu lintas dari konfigurasi sebelumnya dan belum diklaim sebagai POV terverifikasi.
+```python
+SUMBER_KAMERA = {
+    "Utara": 0,
+    "Timur": 1,
+    "Selatan": 2,
+    "Barat": 3,
+}
+```
 
-| Lajur GUI | Skenario penggunaan | Sumber |
-|---|---|---|
-| Utara | POV Scania P320 pada jalan kota, hujan, dan lalu lintas padat | [Scania P320 — Heavy traffic POV](https://www.youtube.com/watch?v=faSTn9Xcwnc) |
-| Timur | POV ambulans melewati kepadatan lalu lintas | [Ambulance POV — Kerala traffic](https://www.youtube.com/watch?v=JMYTZIDpGIo) |
-| Selatan | Feed lalu lintas live dari konfigurasi sebelumnya | [YouTube Live](https://www.youtube.com/live/AQd-p5hFtQo) |
-| Barat | Video lalu lintas dari konfigurasi sebelumnya | [YouTube video](https://www.youtube.com/watch?v=D_R5EpqQIpo) |
+Contoh video lokal:
 
-**Keterbatasan kurasi:** saya dapat mengidentifikasi konteks dua video POV pertama, tetapi metadata dua tautan lama (Selatan dan Barat) belum dapat diverifikasi sebagai POV, kondisi padat, atau menampilkan kendaraan darurat. Karena itu keduanya dipertahankan sebagai feed tambahan, bukan diberi label skenario khusus. Tautan YouTube dapat berubah, dibatasi wilayah, atau tidak lagi menyediakan stream yang dapat dibaca yt-dlp.
+```python
+SUMBER_KAMERA = {
+    "Utara": "videos/utara.mp4",
+    "Timur": "videos/timur.mp4",
+    "Selatan": "videos/selatan.mp4",
+    "Barat": "videos/barat.mp4",
+}
+```
 
-**Catatan metodologi:** video POV bergerak tidak identik dengan CCTV statis pada simpang. Gunakan untuk pengujian tambahan, bukan satu-satunya bukti kinerja sistem. Deteksi kelas Ambulance juga tidak membuktikan prioritas lampu aman; logika kontrol dan keselamatan harus dievaluasi terpisah.
+URL YouTube, jika digunakan, memerlukan konfigurasi dan dependensi resolver yang sesuai. `yt-dlp` tercantum sebagai dependensi opsional untuk skenario tersebut. Jangan menganggap sumber kamera telah aktif sebelum diuji pada perangkat yang digunakan.
 
-GUI hanya mengambil stream saat berjalan dan tidak mengunduh atau menyimpan ulang video ke repositori. Pastikan izin/lisensi sesuai sebelum mengekstrak, memotong, menyimpan, memberi anotasi, atau memasukkan frame ke dataset.
+ROI bawaan tidak aktif (`GUNAKAN_ROI = False`). Jika ROI diaktifkan, koordinat poligon harus disesuaikan dan dikalibrasi untuk masing-masing sudut kamera.
 
-Video uji/inferensi bukan otomatis data training. Untuk training, ekstrak frame sesuai izin, anotasi bounding box delapan kelas, pisahkan train/validation/test tanpa kebocoran frame berdekatan, lalu latih dan evaluasi secara terpisah.
+## Logika simulasi lampu
+
+GUI menyediakan mode Otomatis dan Manual untuk empat lajur: Utara, Timur, Selatan, dan Barat. Pada mode Otomatis, pemilihan lajur berikutnya mempertimbangkan prioritas berikut:
+
+1. Kendaraan darurat terdeteksi dan indikasi sirene pada lajur yang sama.
+2. Kendaraan darurat terdeteksi (Ambulance, Fire engine, atau Police car).
+3. Indikasi sirene dari analisis MP3 yang diasosiasikan pengguna dengan suatu lajur.
+4. Ambang kepadatan minimal dua objek kelas Car dan dua objek kelas Truck.
+5. Mekanisme anti-starvation dan skor kepadatan berbobot biasa.
+
+Perpindahan fase tetap melewati lampu kuning. Prioritas tidak memotong fase hijau yang sedang berjalan secara langsung; pemilihan prioritas berlaku ketika sistem menentukan lajur berikutnya. Durasi hijau tetap mengikuti mekanisme alokasi waktu pada aplikasi.
+
+Bobot kendaraan dan ambang kepadatan merupakan aturan heuristik internal simulasi, bukan standar PCU atau standar rekayasa lalu lintas yang telah divalidasi.
+
+## Analisis audio MP3
+
+Versi `smart_traffic_gui_100.py` menyediakan pemilihan file MP3, pemilihan lajur terkait, dan analisis indikasi sirene.
+
+**Status implementasi:** analisis audio saat ini menggunakan pendekatan heuristik berbasis fitur audio melalui `librosa`, bukan model klasifikasi audio terlatih. Implementasi ini **belum menggunakan YAMNet**. Nilai confidence yang ditampilkan merupakan skor heuristik, bukan probabilitas terkalibrasi.
+
+Beberapa suara seperti klakson, alarm, musik, atau suara mesin dapat memicu indikasi keliru. Ambang deteksi perlu diuji dan dikalibrasi menggunakan kumpulan audio sirene serta non-sirene yang representatif.
+
+File MP3 dipasangkan ke lajur melalui pilihan pengguna. Aplikasi tidak dapat menentukan lokasi sumber sirene secara otomatis hanya dari satu rekaman audio umum. Fitur ini merupakan analisis file, bukan pemantauan audio real-time.
 
 ## Data penelitian
 
-Klik **Mulai Rekam** untuk mengambil snapshot setiap 1 detik pada masing-masing lajur. Setiap baris merupakan satu snapshot, bukan identitas kendaraan unik. Karena itu, total objek menunjukkan jumlah kendaraan yang terlihat pada snapshot tersebut, bukan jumlah kendaraan unik selama keseluruhan sesi.
+Panel data penelitian mendukung perekaman snapshot berkala dan ekspor CSV mentah maupun ringkasan. Setiap snapshot merepresentasikan kondisi yang terbaca pada saat pencatatan; baris snapshot tidak menunjukkan identitas kendaraan unik. Periksa data hasil ekspor dan dokumentasikan kondisi pengujian sebelum menggunakannya dalam analisis atau laporan.
 
-- **Ekspor Data Mentah** menghasilkan snapshot beserta waktu, lajur, jumlah tiap kelas, total objek, skor berbobot, dan status lampu.
-- **Ekspor Ringkasan Paper** menghasilkan statistik per lajur: jumlah sampel, durasi observasi, rerata, simpangan baku, nilai maksimum, dan rerata/maksimum tiap kelas.
+## Batasan dan status pengujian
 
-Skor berbobot menggunakan bobot heuristik internal GUI, bukan nilai PCU terstandar. Jika digunakan dalam laporan atau paper, jelaskan sebagai indeks internal dan dokumentasikan konfigurasi yang dipakai.
+- Sumber kamera default belum diisi dan harus dikonfigurasi sendiri.
+- Ketepatan deteksi YOLO dapat berubah karena pencahayaan, sudut kamera, jarak, oklusi, dan kualitas video.
+- Analisis sirene masih heuristik dan dapat menghasilkan false positive maupun false negative.
+- Input MP3 tidak melokalisasi sumber suara secara otomatis.
+- Bobot kendaraan, ambang kepadatan, dan skor audio belum boleh dianggap sebagai standar terukur tanpa validasi.
+- Kompatibilitas dependensi, performa, dan hasil deteksi perlu diuji pada lingkungan pengguna.
 
-## Catatan evaluasi
-
-Menurunkan confidence dapat meningkatkan recall, tetapi biasanya juga meningkatkan false positive. NMS IoU mengatur penyaringan kotak yang bertumpang tindih; parameter ini tidak meningkatkan kemampuan model mengenali kelas yang belum dipelajari. Untuk evaluasi yang dapat dibandingkan, catat nilai confidence, IoU, kondisi pencahayaan, posisi kamera, dan hasil pemeriksaan manual.
+Gunakan aplikasi ini untuk simulasi dan penelitian terkontrol. README ini tidak menyatakan bahwa sistem telah memenuhi persyaratan keselamatan atau regulasi untuk mengendalikan lampu lalu lintas nyata.
