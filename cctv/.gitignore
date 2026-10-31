@@ -1,0 +1,22 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+*.log
+*.tmp
+
+# HAR dan data sesi browser
+*.har
+
+# Jangan unggah kredensial
+.env
+.env.*
+
+# Data mentah dan hasil yang belum disanitasi
+*.har
+hasil_A.txt
+
+# Kredensial dan konfigurasi lokal
+.env
+.env.*
