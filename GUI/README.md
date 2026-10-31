@@ -8,12 +8,20 @@ Dokumentasi untuk aplikasi pada folder ini, terutama `smart_traffic_gui_100.py`.
 |---|---|
 | `smart_traffic_gui_100.py` | GUI simulasi empat lajur dengan deteksi YOLO26n 100 epoch, prioritas kendaraan, dan input audio MP3 |
 | `smart_traffic_gui.py` | Versi GUI sebelumnya; tidak memuat seluruh fitur tambahan pada versi 100 epoch |
+| `smart_traffic_jogja.py` | Launcher integrasi CCTV Jogja yang menggunakan ulang GUI, model, deteksi, dan simulasi dari versi 100 epoch |
+| `100ep.pt` | Checkpoint model YOLO26n 100 epoch yang tersedia secara lokal |
 | `requirements.txt` | Dependensi dasar proyek GUI |
 
-Jalankan versi terbaru yang didokumentasikan di sini:
+Jalankan GUI utama versi 100 epoch:
 
 ```bash
 python GUI/smart_traffic_gui_100.py
+```
+
+Untuk menggunakan sumber CCTV Jogja melalui pemilih sumber video, jalankan launcher integrasi:
+
+```bash
+python GUI/smart_traffic_jogja.py
 ```
 
 ## Model YOLO26n 100 epoch
@@ -108,6 +116,58 @@ SUMBER_KAMERA = {
 URL YouTube, jika digunakan, memerlukan konfigurasi dan dependensi resolver yang sesuai. `yt-dlp` tercantum sebagai dependensi opsional untuk skenario tersebut. Jangan menganggap sumber kamera telah aktif sebelum diuji pada perangkat yang digunakan.
 
 ROI bawaan tidak aktif (`GUNAKAN_ROI = False`). Jika ROI diaktifkan, koordinat poligon harus disesuaikan dan dikalibrasi untuk masing-masing sudut kamera.
+
+## Integrasi CCTV Jogja
+
+`smart_traffic_jogja.py` menambahkan pemilih sumber video sebelum membuka GUI utama. File ini mengimpor `smart_traffic_gui_100.py` dan menggunakan ulang model, detektor YOLO, panel data, serta logika simulasi yang sudah ada. Integrasi ini tidak melatih ulang model dan tidak mengubah kelas deteksi.
+
+### Sumber video yang tersedia
+
+Setiap lajur (Utara, Timur, Selatan, dan Barat) dapat dipasangkan secara terpisah dengan:
+
+- CCTV Jogja yang tercantum di `cctv/cameras.json`.
+- Sumber bawaan dari konfigurasi GUI 100 epoch.
+- Webcam lokal (indeks 0, 1, atau 2).
+- File video lokal yang dipilih melalui dialog.
+- `Nonaktif` jika lajur tidak digunakan.
+
+Untuk pengujian awal, gunakan satu kamera CCTV pada satu lajur dan setel lajur lain ke `Nonaktif`. Setelah stream dan deteksi terverifikasi, tambahkan sumber lain secara bertahap.
+
+### Data kamera dan validasi sumber
+
+Launcher membaca daftar kamera dari `cctv/cameras.json` relatif terhadap root repository. Pastikan file tersebut tersedia. Entri hanya ditampilkan jika:
+
+- `alive` bernilai `true` pada data lokal;
+- URL menggunakan HTTPS, host `cctvjss.jogjakota.go.id`, dan path playlist berakhiran `.m3u8`;
+- field `headers` kosong atau tidak disediakan.
+
+Status `alive` merupakan hasil pemeriksaan terdahulu, bukan jaminan kamera sedang aktif ketika aplikasi dijalankan. Stream tetap dapat gagal dibuka atau terputus. Jika kamera baru tidak muncul, periksa `cctv/cameras.json` dan perbarui daftar melalui prosedur pengelolaan CCTV yang sudah ada. Launcher tidak melakukan pemindaian massal kamera ketika dibuka.
+
+### Menjalankan integrasi
+
+Jalankan perintah dari root repository:
+
+```bat
+python -m pip install -r GUI\requirements.txt
+python GUI\smart_traffic_jogja.py
+```
+
+Jika instalasi audio MP3 dibutuhkan oleh GUI dasar, pasang juga `librosa` pada interpreter Python yang sama:
+
+```bat
+python -m pip install librosa
+```
+
+Setelah pemilih sumber terbuka, tentukan sumber untuk setiap lajur lalu tekan **Jalankan Smart Traffic Lampiu**. Model dan pipeline inferensi tetap berasal dari `smart_traffic_gui_100.py`; checkpoint mengikuti mekanisme pemuatan model pada GUI tersebut.
+
+### Batasan integrasi CCTV
+
+- Integrasi ini menggunakan stream CCTV sebagai input video untuk deteksi dan simulasi, bukan sebagai kontroler lampu fisik.
+- Tidak ada perintah yang dikirim ke perangkat pengendali lampu lalu lintas.
+- Ketersediaan, latensi, resolusi, sudut kamera, dan kestabilan stream bergantung pada layanan CCTV dan jaringan.
+- Pengujian satu stream perlu dilakukan terlebih dahulu sebelum menggunakan beberapa stream secara bersamaan.
+- Bila stream tidak dapat dibuka, verifikasi koneksi internet, status kamera, dan dukungan OpenCV/FFmpeg pada lingkungan Python.
+- Data `cameras.json` dapat berubah; jangan menganggap seluruh kamera yang tercatat selalu tersedia.
 
 ## Logika simulasi lampu
 
