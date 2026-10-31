@@ -125,7 +125,7 @@ ROI bawaan tidak aktif (`GUNAKAN_ROI = False`). Jika ROI diaktifkan, koordinat p
 
 Setiap lajur (Utara, Timur, Selatan, dan Barat) dapat dipasangkan secara terpisah dengan:
 
-- CCTV Jogja yang tercantum di `cctv/cameras.json`.
+- CCTV Jogja yang tercantum di `GUI/cameras.json`.
 - Sumber bawaan dari konfigurasi GUI 100 epoch.
 - Webcam lokal (indeks 0, 1, atau 2).
 - File video lokal yang dipilih melalui dialog.
@@ -135,13 +135,13 @@ Untuk pengujian awal, gunakan satu kamera CCTV pada satu lajur dan setel lajur l
 
 ### Data kamera dan validasi sumber
 
-Launcher membaca daftar kamera dari `cctv/cameras.json` relatif terhadap root repository. Pastikan file tersebut tersedia. Entri hanya ditampilkan jika:
+Launcher membaca daftar kamera dari `cameras.json` yang berada di folder `GUI` (satu folder dengan launcher). Pastikan file tersebut tersedia. Entri hanya ditampilkan jika:
 
 - `alive` bernilai `true` pada data lokal;
 - URL menggunakan HTTPS, host `cctvjss.jogjakota.go.id`, dan path playlist berakhiran `.m3u8`;
 - field `headers` kosong atau tidak disediakan.
 
-Status `alive` merupakan hasil pemeriksaan terdahulu, bukan jaminan kamera sedang aktif ketika aplikasi dijalankan. Stream tetap dapat gagal dibuka atau terputus. Jika kamera baru tidak muncul, periksa `cctv/cameras.json` dan perbarui daftar melalui prosedur pengelolaan CCTV yang sudah ada. Launcher tidak melakukan pemindaian massal kamera ketika dibuka.
+Status `alive` merupakan hasil pemeriksaan terdahulu, bukan jaminan kamera sedang aktif ketika aplikasi dijalankan. Stream tetap dapat gagal dibuka atau terputus. Jika kamera baru tidak muncul, periksa `GUI/cameras.json` dan perbarui daftar melalui prosedur pengelolaan CCTV yang sudah ada. Launcher tidak melakukan pemindaian massal kamera ketika dibuka.
 
 ### Menjalankan integrasi
 
