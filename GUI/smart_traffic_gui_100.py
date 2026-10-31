@@ -53,15 +53,9 @@ HEX_GREEN = "#2ecc71"
 HEX_DARK_BG = "#1e2530"
 
 # ---------------- [BARU] Konfigurasi kamera & deteksi ----------------
-# Sumber tiap lajur: indeks kamera (0,1,2,..), path file video, atau None (input manual).
-# Default: empat sumber uji; dapat diganti dengan kamera USB atau video lokal.
-# Empat sumber uji GUI:
-# Utara: POV Scania pada lalu lintas padat.
-# Timur: POV ambulans di lalu lintas padat.
-# Selatan: feed lalu lintas (sumber live dari konfigurasi sebelumnya).
-# Barat: video lalu lintas (sumber dari konfigurasi sebelumnya).
-# Semua URL YouTube di-resolve oleh yt-dlp; ketersediaan dapat berubah sewaktu-waktu.
-# Tidak ada URL video contoh yang dianggap tervalidasi.
+# Sumber tiap lajur: indeks kamera (0,1,2,..), path file video, URL YouTube, atau None.
+# Default None agar tidak mengasumsikan sumber video yang belum diverifikasi.
+# URL YouTube (jika dipakai) di-resolve oleh yt-dlp.
 # Isi dengan indeks kamera USB atau path video lokal yang sudah Anda verifikasi.
 SUMBER_KAMERA = {
     "Utara": None,
