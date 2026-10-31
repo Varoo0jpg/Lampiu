@@ -95,6 +95,23 @@ Ubah dictionary `SUMBER_KAMERA` pada bagian konfigurasi di `smart_traffic_gui.py
 - URL video/live yang dapat dibaca resolver `yt-dlp`;
 - `None` untuk memakai input manual pada lajur tersebut.
 
+## Sumber video uji (preset awal)
+
+GUI disiapkan dengan empat feed berikut. Dua sumber pertama ditambahkan untuk mewakili skenario penelitian, sementara dua feed lainnya dipertahankan dari konfigurasi sebelumnya.
+
+| Lajur GUI | Skenario | Sumber |
+|---|---|---|
+| Utara | POV kendaraan pada lalu lintas padat, termasuk jalan kota dan kondisi hujan | [POV Scania P320 — heavy traffic](https://www.youtube.com/watch?v=faSTn9Xcwnc) |
+| Timur | POV ambulans melewati kepadatan lalu lintas | [Ambulance through crowded Kerala traffic](https://www.youtube.com/watch?v=JMYTZIDpGIo) |
+| Selatan | Feed kamera lalu lintas yang sudah digunakan | [YouTube Live](https://www.youtube.com/live/AQd-p5hFtQo) |
+| Barat | Feed video lalu lintas yang sudah digunakan | [YouTube video](https://www.youtube.com/watch?v=D_R5EpqQIpo) |
+
+**Catatan metodologi:** sumber POV bergerak tidak identik dengan kamera CCTV statis di simpang. Gunakan sebagai skenario tambahan untuk menguji deteksi kendaraan dan kondisi padat, bukan sebagai pengganti seluruh pengujian simpang. Feed ambulans dapat dipakai untuk memeriksa apakah kelas *Ambulance* terdeteksi; jangan menganggapnya sebagai bukti bahwa sistem sudah memberi prioritas lampu secara aman tanpa validasi logika kontrol terpisah.
+
+Video YouTube tetap dimiliki pengunggahnya. GUI hanya mengambil stream untuk ditampilkan saat aplikasi berjalan; video tidak disalin atau diunggah ulang ke repositori. Pastikan izin/lisensi sumber sesuai sebelum mengunduh, memotong, menyimpan, melabeli, atau memasukkan frame ke dataset penelitian.
+
+**Penting:** video-video ini adalah bahan uji/inferensi pada GUI, bukan otomatis menjadi data training. Agar menjadi data training, frame perlu diekstrak sesuai izin, dianotasi dengan bounding box delapan kelas yang benar, dibagi ke train/validation/test tanpa kebocoran antar-frame berdekatan, lalu digunakan dalam proses training dan evaluasi terpisah.
+
 ## Data penelitian
 
 Klik **Mulai Rekam** untuk mengambil snapshot setiap 1 detik pada masing-masing lajur. Setiap baris merupakan satu snapshot, bukan identitas kendaraan unik. Karena itu, total objek menunjukkan jumlah kendaraan yang terlihat pada snapshot tersebut, bukan jumlah kendaraan unik selama keseluruhan sesi.
