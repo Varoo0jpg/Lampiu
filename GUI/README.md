@@ -15,15 +15,14 @@ GUI ini diadaptasi dari aplikasi kamera pada repositori `Lampiu` dan diselaraska
 
 ```text
 repository/
-├── Coba/
-│   └── Nigaa.pt
 └── GUI/
     ├── smart_traffic_gui.py
+    ├── Nigaa.pt
     ├── requirements.txt
     └── README.md
 ```
 
-GUI menggunakan `GUI/Nigaa.pt` sebagai checkpoint default (satu folder dengan `smart_traffic_gui.py`). Jika file tidak ditemukan, GUI akan meminta pengguna memilih file `.pt` saat dijalankan. Lokasi khusus juga dapat ditentukan melalui variabel lingkungan `SMART_TRAFFIC_MODEL`. Path relatif pada variabel tersebut mengikuti direktori kerja saat aplikasi dijalankan.
+GUI menggunakan `Nigaa.pt` yang berada satu folder dengan `smart_traffic_gui.py` sebagai checkpoint default. Jika file tidak ditemukan, GUI akan meminta pengguna memilih file `.pt` saat dijalankan. Lokasi khusus juga dapat ditentukan melalui variabel lingkungan `SMART_TRAFFIC_MODEL`. Path relatif pada variabel tersebut mengikuti direktori kerja saat aplikasi dijalankan.
 
 ## Instalasi dan menjalankan
 
