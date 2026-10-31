@@ -54,7 +54,7 @@ HEX_DARK_BG = "#1e2530"
 
 # ---------------- [BARU] Konfigurasi kamera & deteksi ----------------
 # Sumber tiap lajur: indeks kamera (0,1,2,..), path file video, atau None (input manual).
-# Default: hanya kamera laptop untuk lajur Utara.
+# Default: empat sumber uji; dapat diganti dengan kamera USB atau video lokal.
 # Preset uji: Utara = POV lalu lintas padat (Scania, jalan kota/hujan);
 # Timur = POV ambulans menembus kepadatan lalu lintas.
 # Selatan/Barat mempertahankan feed kamera lalu lintas yang sudah digunakan.
