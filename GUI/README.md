@@ -116,12 +116,18 @@ GUI menyediakan mode Otomatis dan Manual untuk empat lajur: Utara, Timur, Selata
 1. Kendaraan darurat terdeteksi dan indikasi sirene pada lajur yang sama.
 2. Kendaraan darurat terdeteksi (Ambulance, Fire engine, atau Police car).
 3. Indikasi sirene dari analisis MP3 yang diasosiasikan pengguna dengan suatu lajur.
-4. Ambang kepadatan minimal dua objek kelas Car dan dua objek kelas Truck.
+4. Ambang kepadatan berdasarkan total bobot seluruh kendaraan pada lajur. Ambang default adalah **5,0**, setara dengan contoh kombinasi 2 Car (2 × 1,0) + 2 Truck (2 × 1,5). Kombinasi tersebut bukan syarat wajib; kombinasi kelas apa pun dapat memicu prioritas jika total bobotnya mencapai atau melampaui 5,0.
 5. Mekanisme anti-starvation dan skor kepadatan berbobot biasa.
+
+Rumus total bobot:
+
+`W = Σ (jumlah_kendaraan_kelas × bobot_kelas)`
+
+Bobot yang digunakan: Ambulance 5,0; Bus 1,5; Car 1,0; Fire engine 5,0; Military 2,0; Motorcycle 0,5; Police car 5,0; Truck 1,5. Contoh lain yang memenuhi ambang 5,0 adalah 5 Car, 10 Motorcycle, atau 4 Bus.
 
 Perpindahan fase tetap melewati lampu kuning. Prioritas tidak memotong fase hijau yang sedang berjalan secara langsung; pemilihan prioritas berlaku ketika sistem menentukan lajur berikutnya. Durasi hijau tetap mengikuti mekanisme alokasi waktu pada aplikasi.
 
-Bobot kendaraan dan ambang kepadatan merupakan aturan heuristik internal simulasi, bukan standar PCU atau standar rekayasa lalu lintas yang telah divalidasi.
+Bobot kendaraan dan ambang 5,0 merupakan parameter model simulasi yang harus dijustifikasi dan divalidasi melalui skenario penelitian. Nilai ini bukan standar PCU atau standar rekayasa lalu lintas yang telah divalidasi.
 
 ## Analisis audio MP3
 
