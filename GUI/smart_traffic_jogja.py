@@ -21,7 +21,7 @@ import sys
 from urllib.parse import urlparse
 
 import customtkinter as ctk
-from tkinter import filedialog, messagebox
+from tkinter import StringVar, filedialog, messagebox
 
 GUI_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_DIR = os.path.dirname(GUI_DIR)
@@ -155,7 +155,7 @@ class PemilihSumber(ctk.CTk):
                 anchor="w",
             ).grid(row=row, column=0, padx=(8, 12), pady=12, sticky="w")
 
-            variable = ctk.StringVar(value=OPSIONAL_NONAKTIF)
+            variable = StringVar(value=OPSIONAL_NONAKTIF)
             self.variables[lane] = variable
 
             combo = ctk.CTkComboBox(
