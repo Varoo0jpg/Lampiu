@@ -58,10 +58,10 @@ HEX_DARK_BG = "#1e2530"
 # URL YouTube (jika dipakai) di-resolve oleh yt-dlp.
 # Isi dengan indeks kamera USB atau path video lokal yang sudah Anda verifikasi.
 SUMBER_KAMERA = {
-    "Utara": None,
-    "Timur": None,
-    "Selatan": None,
-    "Barat": None,
+    "Utara": "https://youtu.be/wap8PADwLxU?si=YEeihAy0Wb6aO-Rx",
+    "Timur": "https://youtu.be/5qcM8zvrj4g?si=1aLRX9RBNHMutaw6",
+    "Selatan": "https://www.youtube.com/live/AQd-p5hFtQo?si=0hXsDQo-l-_YuIjj",
+    "Barat": "https://www.youtube.com/live/MxlqkY5SVeU?si=laSrcwHsgZBzgDkT"
 }
 # Contoh 4 kamera USB:
 # SUMBER_KAMERA = {"Utara": 0, "Timur": 1, "Selatan": 2, "Barat": 3}
