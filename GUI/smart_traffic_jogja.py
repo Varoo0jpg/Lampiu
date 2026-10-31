@@ -24,8 +24,7 @@ import customtkinter as ctk
 from tkinter import StringVar, filedialog, messagebox
 
 GUI_DIR = os.path.dirname(os.path.abspath(__file__))
-REPO_DIR = os.path.dirname(GUI_DIR)
-CAMERAS_FILE = os.path.join(REPO_DIR, "cctv", "cameras.json")
+CAMERAS_FILE = os.path.join(GUI_DIR, "cameras.json")
 
 # Pastikan modul GUI existing dapat diimpor saat file dijalankan dari root repo.
 if GUI_DIR not in sys.path:
