@@ -95,22 +95,24 @@ Ubah dictionary `SUMBER_KAMERA` pada bagian konfigurasi di `smart_traffic_gui.py
 - URL video/live yang dapat dibaca resolver `yt-dlp`;
 - `None` untuk memakai input manual pada lajur tersebut.
 
-## Sumber video uji (preset awal)
+## Empat sumber video uji pada GUI
 
-GUI disiapkan dengan empat feed berikut. Dua sumber pertama ditambahkan untuk mewakili skenario penelitian, sementara dua feed lainnya dipertahankan dari konfigurasi sebelumnya.
+Keempat kotak kamera pada GUI sudah diisi dengan sumber terpisah. Dua sumber pertama merupakan POV yang dipilih untuk skenario penelitian; dua sumber terakhir adalah feed lalu lintas dari konfigurasi sebelumnya dan belum diklaim sebagai POV terverifikasi.
 
-| Lajur GUI | Skenario | Sumber |
+| Lajur GUI | Skenario penggunaan | Sumber |
 |---|---|---|
-| Utara | POV kendaraan pada lalu lintas padat, termasuk jalan kota dan kondisi hujan | [POV Scania P320 — heavy traffic](https://www.youtube.com/watch?v=faSTn9Xcwnc) |
-| Timur | POV ambulans melewati kepadatan lalu lintas | [Ambulance through crowded Kerala traffic](https://www.youtube.com/watch?v=JMYTZIDpGIo) |
-| Selatan | Feed kamera lalu lintas yang sudah digunakan | [YouTube Live](https://www.youtube.com/live/AQd-p5hFtQo) |
-| Barat | Feed video lalu lintas yang sudah digunakan | [YouTube video](https://www.youtube.com/watch?v=D_R5EpqQIpo) |
+| Utara | POV Scania P320 pada jalan kota, hujan, dan lalu lintas padat | [Scania P320 — Heavy traffic POV](https://www.youtube.com/watch?v=faSTn9Xcwnc) |
+| Timur | POV ambulans melewati kepadatan lalu lintas | [Ambulance POV — Kerala traffic](https://www.youtube.com/watch?v=JMYTZIDpGIo) |
+| Selatan | Feed lalu lintas live dari konfigurasi sebelumnya | [YouTube Live](https://www.youtube.com/live/AQd-p5hFtQo) |
+| Barat | Video lalu lintas dari konfigurasi sebelumnya | [YouTube video](https://www.youtube.com/watch?v=D_R5EpqQIpo) |
 
-**Catatan metodologi:** sumber POV bergerak tidak identik dengan kamera CCTV statis di simpang. Gunakan sebagai skenario tambahan untuk menguji deteksi kendaraan dan kondisi padat, bukan sebagai pengganti seluruh pengujian simpang. Feed ambulans dapat dipakai untuk memeriksa apakah kelas *Ambulance* terdeteksi; jangan menganggapnya sebagai bukti bahwa sistem sudah memberi prioritas lampu secara aman tanpa validasi logika kontrol terpisah.
+**Keterbatasan kurasi:** saya dapat mengidentifikasi konteks dua video POV pertama, tetapi metadata dua tautan lama (Selatan dan Barat) belum dapat diverifikasi sebagai POV, kondisi padat, atau menampilkan kendaraan darurat. Karena itu keduanya dipertahankan sebagai feed tambahan, bukan diberi label skenario khusus. Tautan YouTube dapat berubah, dibatasi wilayah, atau tidak lagi menyediakan stream yang dapat dibaca yt-dlp.
 
-Video YouTube tetap dimiliki pengunggahnya. GUI hanya mengambil stream untuk ditampilkan saat aplikasi berjalan; video tidak disalin atau diunggah ulang ke repositori. Pastikan izin/lisensi sumber sesuai sebelum mengunduh, memotong, menyimpan, melabeli, atau memasukkan frame ke dataset penelitian.
+**Catatan metodologi:** video POV bergerak tidak identik dengan CCTV statis pada simpang. Gunakan untuk pengujian tambahan, bukan satu-satunya bukti kinerja sistem. Deteksi kelas Ambulance juga tidak membuktikan prioritas lampu aman; logika kontrol dan keselamatan harus dievaluasi terpisah.
 
-**Penting:** video-video ini adalah bahan uji/inferensi pada GUI, bukan otomatis menjadi data training. Agar menjadi data training, frame perlu diekstrak sesuai izin, dianotasi dengan bounding box delapan kelas yang benar, dibagi ke train/validation/test tanpa kebocoran antar-frame berdekatan, lalu digunakan dalam proses training dan evaluasi terpisah.
+GUI hanya mengambil stream saat berjalan dan tidak mengunduh atau menyimpan ulang video ke repositori. Pastikan izin/lisensi sesuai sebelum mengekstrak, memotong, menyimpan, memberi anotasi, atau memasukkan frame ke dataset.
+
+Video uji/inferensi bukan otomatis data training. Untuk training, ekstrak frame sesuai izin, anotasi bounding box delapan kelas, pisahkan train/validation/test tanpa kebocoran frame berdekatan, lalu latih dan evaluasi secara terpisah.
 
 ## Data penelitian
 
