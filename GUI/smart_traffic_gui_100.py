@@ -2,7 +2,7 @@
 # GUI CustomTkinter (Coba.py) + deteksi kendaraan 4 kamera (YOLO)
 #
 # Instalasi:
-#   pip install customtkinter pillow opencv-python ultralytics numpy
+#   pip install customtkinter pillow opencv-python ultralytics numpy librosa yt-dlp
 #
 # Penanda perubahan terhadap Coba.py asli:
 #   [BARU]       = bagian tambahan (deteksi kamera, tampilan feed)
@@ -185,10 +185,10 @@ GUNAKAN_ROI = False
 #   "PADAT"    = lajur dengan skor tertinggi didahulukan (dengan batas tunggu maksimum)
 #   "BERGILIR" = urutan tetap Utara -> Timur -> Selatan -> Barat
 PILIH_LAJUR_BERIKUT = "PADAT"
-BATAS_TUNGGU_MAKS = 180
+BATAS_TUNGGU_MAKS = 180          # detik; batas anti-starvation
 AMBANG_SIRENE = 0.65       # Ambang heuristik audio MP3; bukan model klasifikasi terlatih
 MIN_MOBIL_PRIORITAS = 2
-MIN_TRUK_PRIORITAS = 2          # detik; lajur yang menunggu lebih lama dipaksa mendapat giliran
+MIN_TRUK_PRIORITAS = 2
 
 
 # ===============================================================
