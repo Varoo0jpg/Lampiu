@@ -61,11 +61,13 @@ HEX_DARK_BG = "#1e2530"
 # Selatan: feed lalu lintas (sumber live dari konfigurasi sebelumnya).
 # Barat: video lalu lintas (sumber dari konfigurasi sebelumnya).
 # Semua URL YouTube di-resolve oleh yt-dlp; ketersediaan dapat berubah sewaktu-waktu.
+# Tidak ada URL video contoh yang dianggap tervalidasi.
+# Isi dengan indeks kamera USB atau path video lokal yang sudah Anda verifikasi.
 SUMBER_KAMERA = {
-    "Utara": "https://www.youtube.com/watch?v=faSTn9Xcwnc",
-    "Timur": "https://www.youtube.com/watch?v=JMYTZIDpGIo",
-    "Selatan": "https://www.youtube.com/live/AQd-p5hFtQo?si=0hXsDQo-l-_YuIjj",
-    "Barat": "https://www.youtube.com/watch?v=D_R5EpqQIpo",
+    "Utara": None,
+    "Timur": None,
+    "Selatan": None,
+    "Barat": None,
 }
 # Contoh 4 kamera USB:
 # SUMBER_KAMERA = {"Utara": 0, "Timur": 1, "Selatan": 2, "Barat": 3}
