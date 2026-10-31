@@ -114,7 +114,7 @@ SUMBER_KAMERA = {
 }
 ```
 
-Indeks kamera, path video, dan URL stream harus disesuaikan dengan perangkat serta sumber yang benar-benar tersedia. Pastikan setiap kamera mengarah ke lajur yang sesuai. ROI bawaan tidak aktif (`GUNAKAN_ROI = False)); jika ROI diaktifkan, koordinat poligon perlu dikalibrasi untuk masing-masing kamera.
+Indeks kamera, path video, dan URL stream harus disesuaikan dengan perangkat serta sumber yang benar-benar tersedia. Pastikan setiap kamera mengarah ke lajur yang sesuai. ROI bawaan tidak aktif (`GUNAKAN_ROI = False`); jika ROI diaktifkan, koordinat poligon perlu dikalibrasi untuk masing-masing kamera.
 
 ## Cara menggunakan fitur audio MP3
 
