@@ -20,8 +20,8 @@ import os
 import sys
 from urllib.parse import urlparse
 
-import customtkinter as ctk
-from tkinter import StringVar, filedialog, messagebox
+import tkinter as tk
+from tkinter import StringVar, filedialog, messagebox, ttk
 
 GUI_DIR = os.path.dirname(os.path.abspath(__file__))
 CAMERAS_FILE = os.path.join(GUI_DIR, "cameras.json")
@@ -94,16 +94,15 @@ def muat_daftar_cctv(path=CAMERAS_FILE):
     return hasil
 
 
-class PemilihSumber(ctk.CTk):
-    """Dialog awal untuk memilih sumber video masing-masing lajur."""
+class PemilihSumber(tk.Tk):
+    """Dialog awal Tkinter standar; tidak membuat root CustomTkinter kedua."""
 
     def __init__(self, cameras):
         super().__init__()
         self.title("Lampiu — Pemilihan Sumber Video")
-        self.geometry("900x720")
-        self.minsize(760, 560)
-        ctk.set_appearance_mode("Dark")
-        ctk.set_default_color_theme("blue")
+        self.geometry("940x560")
+        self.minsize(780, 500)
+        self.configure(bg="#171d26")
 
         self.cameras = cameras
         self.camera_by_label = {camera["label"]: camera for camera in cameras}
@@ -111,33 +110,85 @@ class PemilihSumber(ctk.CTk):
         self.video_paths = {}
         self.selected_sources = None
 
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(1, weight=1)
+        style = ttk.Style(self)
+        try:
+            style.theme_use("clam")
+        except tk.TclError:
+            pass
+        style.configure(
+            "Lampiu.TCombobox",
+            fieldbackground="#263241",
+            background="#263241",
+            foreground="#f2f5f8",
+            arrowcolor="#f2f5f8",
+            padding=6,
+        )
+        style.map(
+            "Lampiu.TCombobox",
+            fieldbackground=[("readonly", "#263241")],
+            foreground=[("readonly", "#f2f5f8")],
+            selectbackground=[("readonly", "#263241")],
+            selectforeground=[("readonly", "#f2f5f8")],
+        )
+        style.configure(
+            "Lampiu.TButton",
+            background="#2878b8",
+            foreground="#ffffff",
+            padding=(10, 7),
+            borderwidth=0,
+        )
+        style.map("Lampiu.TButton", background=[("active", "#1f6399")])
+        style.configure(
+            "Start.TButton",
+            background="#218c54",
+            foreground="#ffffff",
+            padding=(12, 10),
+            borderwidth=0,
+        )
+        style.map("Start.TButton", background=[("active", "#176b3f")])
 
-        header = ctk.CTkFrame(self, fg_color="transparent")
-        header.grid(row=0, column=0, sticky="ew", padx=18, pady=(16, 8))
-        ctk.CTkLabel(
-            header,
+        container = tk.Frame(self, bg="#171d26", padx=22, pady=18)
+        container.pack(fill="both", expand=True)
+
+        tk.Label(
+            container,
             text="PILIH SUMBER VIDEO PER LAJUR",
+            bg="#171d26",
+            fg="#5dade2",
             font=("Arial", 19, "bold"),
-            text_color="#5dade2",
         ).pack(anchor="w")
-        ctk.CTkLabel(
-            header,
+        tk.Label(
+            container,
             text=(
-                "CCTV Jogja, sumber bawaan, webcam, atau video lokal. "
+                "Pilih CCTV Jogja, sumber bawaan, webcam, atau video lokal. "
                 "Untuk pengujian pertama, disarankan memilih satu CCTV."
             ),
-            font=("Arial", 11),
-            text_color="#b0b8c2",
-            wraplength=820,
+            bg="#171d26",
+            fg="#b0b8c2",
+            font=("Arial", 10),
+            wraplength=850,
             justify="left",
-        ).pack(anchor="w", pady=(5, 0))
+        ).pack(anchor="w", pady=(6, 18))
 
-        body = ctk.CTkScrollableFrame(self, label_text="Konfigurasi empat lajur")
-        body.grid(row=1, column=0, sticky="nsew", padx=18, pady=8)
-        body.grid_columnconfigure(1, weight=1)
+        panel = tk.Frame(
+            container,
+            bg="#202a36",
+            highlightbackground="#354354",
+            highlightthickness=1,
+            padx=14,
+            pady=14,
+        )
+        panel.pack(fill="both", expand=True)
 
+        tk.Label(
+            panel,
+            text="KONFIGURASI EMPAT LAJUR",
+            bg="#202a36",
+            fg="#e8edf2",
+            font=("Arial", 11, "bold"),
+        ).grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 12))
+
+        panel.grid_columnconfigure(1, weight=1)
         options = [
             OPSIONAL_NONAKTIF,
             OPSIONAL_BAWAAN,
@@ -145,59 +196,54 @@ class PemilihSumber(ctk.CTk):
             *(camera["label"] for camera in cameras),
         ]
 
-        for row, lane in enumerate(base_gui.DAFTAR_LAJUR):
-            ctk.CTkLabel(
-                body,
-                text=lane,
-                font=("Arial", 13, "bold"),
-                width=90,
+        for row, lane in enumerate(base_gui.DAFTAR_LAJUR, start=1):
+            tk.Label(
+                panel,
+                text=f"Lajur {lane}",
+                bg="#202a36",
+                fg="#e8edf2",
+                font=("Arial", 11, "bold"),
+                width=13,
                 anchor="w",
-            ).grid(row=row, column=0, padx=(8, 12), pady=12, sticky="w")
+            ).grid(row=row, column=0, padx=(2, 12), pady=9, sticky="w")
 
-            variable = StringVar(value=OPSIONAL_NONAKTIF)
+            variable = StringVar(master=self, value=OPSIONAL_NONAKTIF)
             self.variables[lane] = variable
-
-            combo = ctk.CTkComboBox(
-                body,
+            combo = ttk.Combobox(
+                panel,
+                textvariable=variable,
                 values=options,
-                variable=variable,
                 state="readonly",
-                width=520,
+                style="Lampiu.TCombobox",
             )
-            combo.grid(row=row, column=1, padx=6, pady=12, sticky="ew")
+            combo.grid(row=row, column=1, padx=6, pady=9, sticky="ew")
 
-            button = ctk.CTkButton(
-                body,
+            ttk.Button(
+                panel,
                 text="Pilih video...",
-                width=120,
+                style="Lampiu.TButton",
                 command=lambda selected_lane=lane: self.pilih_video_lokal(selected_lane),
-            )
-            button.grid(row=row, column=2, padx=(6, 8), pady=12)
-
-        footer = ctk.CTkFrame(self, fg_color="transparent")
-        footer.grid(row=2, column=0, sticky="ew", padx=18, pady=(8, 16))
-        footer.grid_columnconfigure(0, weight=1)
+            ).grid(row=row, column=2, padx=(8, 2), pady=9)
 
         status = (
             f"{len(cameras)} kamera CCTV tersedia di daftar lokal."
             if cameras
-            else "Daftar CCTV tidak tersedia atau tidak memiliki entri yang lolos validasi."
+            else "Daftar CCTV kosong/tidak tersedia; webcam dan video lokal tetap dapat digunakan."
         )
-        ctk.CTkLabel(
-            footer,
+        tk.Label(
+            container,
             text=status,
-            font=("Arial", 10),
-            text_color="#aab7c4",
-        ).grid(row=0, column=0, sticky="w", pady=(0, 8))
+            bg="#171d26",
+            fg="#aab7c4",
+            font=("Arial", 9),
+        ).pack(anchor="w", pady=(12, 8))
 
-        ctk.CTkButton(
-            footer,
+        ttk.Button(
+            container,
             text="Jalankan Smart Traffic Lampiu",
-            height=40,
-            fg_color="#218c54",
-            hover_color="#176b3f",
+            style="Start.TButton",
             command=self.mulai_aplikasi,
-        ).grid(row=1, column=0, sticky="ew")
+        ).pack(fill="x")
 
         self.protocol("WM_DELETE_WINDOW", self.batal)
 
@@ -253,20 +299,30 @@ class PemilihSumber(ctk.CTk):
 
 
 def main():
+    camera_error = None
     try:
         cameras = muat_daftar_cctv()
     except RuntimeError as exc:
-        messagebox.showerror("Data CCTV tidak valid", str(exc))
+        camera_error = str(exc)
         cameras = []
 
+    # Root Tk standar hanya dipakai untuk pemilih sumber. Setelah ditutup,
+    # satu-satunya root CustomTkinter yang dibuat adalah TrafficGUI.
     picker = PemilihSumber(cameras)
+    if camera_error:
+        picker.after(
+            150,
+            lambda: messagebox.showerror(
+                "Data CCTV tidak valid", camera_error, parent=picker
+            ),
+        )
     picker.mainloop()
 
     if picker.selected_sources is None:
         return
 
     # Hanya mengganti konfigurasi sumber pada proses launcher ini.
-    # smart_traffic_gui_100.py dan file lain di repository tidak diubah.
+    # Model, detektor YOLO, dan mesin simulasi tetap berada di modul utama.
     base_gui.SUMBER_KAMERA = dict(picker.selected_sources)
 
     app = base_gui.TrafficGUI()
