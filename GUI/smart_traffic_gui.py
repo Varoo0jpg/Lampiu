@@ -55,7 +55,16 @@ HEX_DARK_BG = "#1e2530"
 # ---------------- [BARU] Konfigurasi kamera & deteksi ----------------
 # Sumber tiap lajur: indeks kamera (0,1,2,..), path file video, atau None (input manual).
 # Default: hanya kamera laptop untuk lajur Utara.
-SUMBER_KAMERA = {"Utara": "https://www.youtube.com/live/MxlqkY5SVeU?si=laSrcwHsgZBzgDkT", "Timur": "https://www.youtube.com/live/rvosEdHX190?si=8M28QIj2SgaTv1qh", "Selatan": "https://www.youtube.com/live/AQd-p5hFtQo?si=0hXsDQo-l-_YuIjj", "Barat": "https://www.youtube.com/watch?v=D_R5EpqQIpo"}
+# Preset uji: Utara = POV lalu lintas padat (Scania, jalan kota/hujan);
+# Timur = POV ambulans menembus kepadatan lalu lintas.
+# Selatan/Barat mempertahankan feed kamera lalu lintas yang sudah digunakan.
+# Tautan YouTube dibaca melalui yt-dlp; koneksi internet diperlukan.
+SUMBER_KAMERA = {
+    "Utara": "https://www.youtube.com/watch?v=faSTn9Xcwnc",
+    "Timur": "https://www.youtube.com/watch?v=JMYTZIDpGIo",
+    "Selatan": "https://www.youtube.com/live/AQd-p5hFtQo?si=0hXsDQo-l-_YuIjj",
+    "Barat": "https://www.youtube.com/watch?v=D_R5EpqQIpo",
+}
 # Contoh 4 kamera USB:
 # SUMBER_KAMERA = {"Utara": 0, "Timur": 1, "Selatan": 2, "Barat": 3}
 # Contoh 4 file video:
