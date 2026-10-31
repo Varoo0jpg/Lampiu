@@ -84,7 +84,7 @@ Untuk menggunakan checkpoint di lokasi khusus, atur environment variable sebelum
 
 **Windows PowerShell**
 ```powershell
-$env:SMART_TRAFFIC_MODEL="C:\\path\\to\\best.pt"
+$env:SMART_TRAFFIC_MODEL="C:/path/to/best.pt"
 python GUI/smart_traffic_gui_100.py
 ```
 
