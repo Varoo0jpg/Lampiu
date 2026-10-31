@@ -467,7 +467,8 @@ class TrafficGUI(ctk.CTk):
         self.fase_saat_ini = "HIJAU"     # Status: "HIJAU" atau "KUNING"
         self.lajur_aktif = "Utara"       # Menunjukkan lajur mana yang sedang hijau
         self.hitung_mundur = 10          # Durasi detik yang tersisa
-        self.lajur_terpaksa = None       # Lajur berikutnya; juga dipakai emergency setelah clearance
+        self.lajur_terpaksa = None       # Target berikutnya setelah fase clearance
+        self.override_manual_aktif = False # Prioritas Paksa Hijau sampai satu giliran hijau selesai
         self.confidence_visual_darurat = {l: 0.0 for l in DAFTAR_LAJUR}
 
         # [BARU] State kamera & penjadwalan
@@ -1392,7 +1393,9 @@ class TrafficGUI(ctk.CTk):
         if not self.simulasi_aktif:
             return
 
-        emergency_lane = self.lajur_darurat_terkonfirmasi()
+        # Paksa Hijau manual memiliki prioritas atas pemilihan otomatis dan
+        # emergency preemption sampai satu giliran hijau lajur target selesai.
+        emergency_lane = None if self.override_manual_aktif else self.lajur_darurat_terkonfirmasi()
         if emergency_lane is not None and emergency_lane != self.lajur_aktif:
             self.lajur_terpaksa = emergency_lane
             # Jangan melompati clearance: preemption dimulai melalui kuning,
@@ -1400,6 +1403,12 @@ class TrafficGUI(ctk.CTk):
             if self.fase_saat_ini == "HIJAU":
                 self.fase_saat_ini = "KUNING"
                 self.hitung_mundur = FASE_KUNING
+
+        # Akhiri prioritas manual hanya saat giliran hijau yang dipaksakan
+        # benar-benar selesai; jangan biarkan AUTO/emergency memotongnya.
+        if (self.override_manual_aktif and self.fase_saat_ini == "HIJAU"
+                and self.lajur_terpaksa is None and self.hitung_mundur <= 1):
+            self.override_manual_aktif = False
 
         self.hitung_mundur -= 1
 
@@ -1429,6 +1438,7 @@ class TrafficGUI(ctk.CTk):
         self.fase_saat_ini = "HIJAU"
         self.hitung_mundur = durasi_awal
         self.lajur_terpaksa = None
+        self.override_manual_aktif = False
         self.waktu_hijau_terakhir[self.lajur_aktif] = time.time()
         self.simulasi_aktif = True
         self.btn_mulai.configure(state="disabled")
@@ -1440,6 +1450,8 @@ class TrafficGUI(ctk.CTk):
 
     def action_hentikan_simulasi(self):
         self.simulasi_aktif = False
+        self.lajur_terpaksa = None
+        self.override_manual_aktif = False
         if self._id_ticker is not None:
             self.after_cancel(self._id_ticker)
             self._id_ticker = None
@@ -1474,6 +1486,7 @@ class TrafficGUI(ctk.CTk):
         # Simpan target. Jika transisi sudah berjalan, jangan reset countdown:
         # target akan diterapkan setelah KUNING dan ALL_RED selesai.
         self.lajur_terpaksa = lajur_tujuan
+        self.override_manual_aktif = True
         if self.fase_saat_ini == "HIJAU":
             self.fase_saat_ini = "KUNING"
             self.hitung_mundur = FASE_KUNING
