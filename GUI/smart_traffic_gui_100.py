@@ -183,8 +183,7 @@ GUNAKAN_ROI = False
 PILIH_LAJUR_BERIKUT = "PADAT"
 BATAS_TUNGGU_MAKS = 180          # detik; batas anti-starvation
 AMBANG_SIRENE = 0.65       # Ambang heuristik audio MP3; bukan model klasifikasi terlatih
-MIN_MOBIL_PRIORITAS = 2
-MIN_TRUK_PRIORITAS = 2
+AMBANG_KAPASITAS_LAJUR = 5.0  # Setara contoh 2 Car + 2 Truck; total bobot semua kelas
 
 
 # ===============================================================
@@ -1316,27 +1315,22 @@ class TrafficGUI(ctk.CTk):
         # OTOMATIS: prioritas bertingkat sebelum skor kepadatan biasa.
         # Rank 3: kendaraan darurat + sirene pada lajur yang sama.
         # Rank 2: kendaraan darurat terdeteksi YOLO.
-        # Rank 1: audio sirene MP3 terindikasi (meski tidak ada kendaraan darurat).
-        # Rank 0: ambang kepadatan minimal 2 mobil DAN 2 truk.
+        # Rank 1: audio sirene MP3 terindikasi.
+        # Kepadatan: total bobot seluruh kelas >= ambang kapasitas lajur.
         now = time.time()
         kandidat = [l for l in DAFTAR_LAJUR if l != self.lajur_aktif]
         peringkat = {}
         for lajur in kandidat:
             panel = self.kumpulan_panel[lajur]
             try:
-                data = {j: int(panel.kolom_input[j].get()) for j in BOBOT_KENDARAAN}
+                data = {j: max(0, int(panel.kolom_input[j].get())) for j in BOBOT_KENDARAAN}
             except (ValueError, KeyError):
                 data = {j: 0 for j in BOBOT_KENDARAAN}
             darurat = sum(data.get(j, 0) for j in ("Ambulance", "Fire engine", "Police car")) > 0
             audio = (self.audio_confidence_values.get(lajur) or 0.0) >= AMBANG_SIRENE
-            padat_minimum = (
-                data.get("Car", 0) >= MIN_MOBIL_PRIORITAS
-                and data.get("Truck", 0) >= MIN_TRUK_PRIORITAS
-            )
             peringkat[lajur] = 3 if darurat and audio else 2 if darurat else 1 if audio else 0
 
-        # Keadaan darurat/sirene mengungguli kepadatan; sirene MP3 sendiri
-        # dapat memicu prioritas simulasi pada lajur yang dipilih pengguna.
+        # Keadaan darurat/sirene mengungguli kepadatan.
         prioritas = [l for l in kandidat if peringkat[l] > 0]
         if prioritas:
             return max(
@@ -1346,17 +1340,13 @@ class TrafficGUI(ctk.CTk):
                                now - self.waktu_hijau_terakhir[l])
             )
 
-        # Ambang 2 mobil + 2 truk menjadi pemicu prioritas kepadatan.
-        padat = []
-        for lajur in kandidat:
-            p = self.kumpulan_panel[lajur]
-            try:
-                mobil = int(p.kolom_input["Car"].get())
-                truk = int(p.kolom_input["Truck"].get())
-            except (ValueError, KeyError):
-                mobil, truk = 0, 0
-            if mobil >= MIN_MOBIL_PRIORITAS and truk >= MIN_TRUK_PRIORITAS:
-                padat.append(lajur)
+        # Semua kombinasi kelas kendaraan dapat memicu kepadatan.
+        # Contoh 2 Car + 2 Truck = 5.0 hanya menjadi dasar penetapan ambang,
+        # bukan syarat kombinasi kelas yang wajib dipenuhi.
+        padat = [
+            l for l in kandidat
+            if self.kumpulan_panel[l].ambil_skor_bobot() >= AMBANG_KAPASITAS_LAJUR
+        ]
         if padat:
             return max(
                 padat,
