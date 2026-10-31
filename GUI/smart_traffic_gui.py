@@ -103,7 +103,7 @@ IMGSZ = 640                    # kecil = lebih cepat di CPU
 UKURAN_FRAME = (640, 480)        # ukuran proses deteksi
 UKURAN_TAMPIL = (330, 248)       # ukuran feed di kotak kamera GUI
 
-# Urutan kelas diverifikasi terhadap checkpoint dan data.yaml proyek YOLO26n_50ep.
+# Urutan kelas diverifikasi terhadap checkpoint dan data.yaml proyek YOLO26n_100ep.
 KELAS_YOLO = {
     0: "Ambulance",
     1: "Bus",
@@ -133,7 +133,7 @@ def validasi_model_kendaraan(model):
     if nama is None:
         raise RuntimeError(
             "Model YOLO tidak menyediakan daftar nama kelas. "
-            "Periksa MODEL_PATH dan pastikan Nigaa.pt merupakan bobot YOLO yang valid."
+            "Periksa MODEL_PATH dan pastikan 100ep.pt merupakan bobot YOLO yang valid."
         )
 
     try:
@@ -160,7 +160,7 @@ def validasi_model_kendaraan(model):
             raise RuntimeError(
                 f"Model pada {MODEL_PATH!r} tidak cocok dengan konfigurasi 8 kelas. "
                 f"Kelas indeks {indeks} diharapkan {nama_yang_diharapkan!r}, tetapi ditemukan {aktual!r}. "
-                "Pastikan Nigaa.pt adalah hasil Training V2 dengan urutan kelas yang benar."
+                "Pastikan 100ep.pt adalah hasil training 100 epoch dengan urutan kelas yang benar."
             )
 
 # ROI per lajur (pecahan frame): area antrean di depan kamera. SESUAIKAN per kamera.
