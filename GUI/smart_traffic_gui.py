@@ -15,7 +15,8 @@ import statistics
 import sys
 import threading
 import time
-from datetime import datetime
+import urllib.request
+from datetime datetime
 from tkinter import filedialog, messagebox, ttk
 
 import customtkinter as ctk
@@ -68,11 +69,36 @@ def resource_path(nama):
     return os.path.join(base, nama)
 
 
-# Checkpoint baseline pada repositori Yolo26n_50ep.
-# Struktur yang diharapkan: GUI/smart_traffic_gui.py dan GUI/Nigaa.pt.
-# Model berada satu folder dengan file GUI ini.
-MODEL_PATH = os.environ.get("SMART_TRAFFIC_MODEL", os.path.abspath(resource_path("Nigaa.pt")))
-CONF = 0.20  # Baseline confidence untuk evaluasi awal model V2
+def siapkan_model_100ep():
+    """Unduh checkpoint best.pt 100 epoch sebagai 100ep.pt jika belum ada."""
+    if os.path.isfile(MODEL_PATH):
+        return True
+    if os.environ.get("SMART_TRAFFIC_MODEL"):
+        return False
+    os.makedirs(os.path.dirname(MODEL_PATH), exist_ok=True)
+    sementara = MODEL_PATH + ".download"
+    try:
+        print("[INFO] Mengunduh model YOLO26n 100 epoch...")
+        urllib.request.urlretrieve(MODEL_URL, sementara)
+        if os.path.getsize(sementara) < 1_000_000:
+            raise RuntimeError("File checkpoint terlalu kecil; unduhan tidak valid.")
+        os.replace(sementara, MODEL_PATH)
+        print(f"[INFO] Model siap: {MODEL_PATH}")
+        return True
+    except Exception as exc:
+        print(f"[PERINGATAN] Unduhan model otomatis gagal: {exc}")
+        try:
+            if os.path.exists(sementara): os.remove(sementara)
+        except OSError:
+            pass
+        return False
+
+
+# Checkpoint hasil training YOLO26n 100 epoch.
+MODEL_URL = "https://raw.githubusercontent.com/Varoo0jpg/Yolo26n_100ep/main/weights/best.pt"
+MODEL_PATH = os.environ.get("SMART_TRAFFIC_MODEL", os.path.abspath(resource_path("100ep.pt")))
+CONF = 0.15  # Threshold awal lebih sensitif; dapat diubah melalui GUI.
+IOU = 0.60   # NMS IoU; nilai lebih tinggi mempertahankan kotak yang berdekatan.
 IMGSZ = 640                    # kecil = lebih cepat di CPU
 UKURAN_FRAME = (640, 480)        # ukuran proses deteksi
 UKURAN_TAMPIL = (330, 248)       # ukuran feed di kotak kamera GUI
@@ -231,6 +257,7 @@ class DetektorKamera(threading.Thread):
             hasil = model(
                 [imgs[l] for l in daftar],
                 conf=CONF,
+                iou=IOU,
                 imgsz=IMGSZ,
                 classes=list(KELAS_YOLO),
                 device="cpu",
@@ -419,6 +446,10 @@ class TrafficGUI(ctk.CTk):
         self.bangun_grid_simulasi_kanan()
         self.bangun_panel_penelitian()
 
+        # Unduh checkpoint 100 epoch otomatis; dialog menjadi fallback jika gagal.
+        if not os.path.isfile(MODEL_PATH) and not os.environ.get("SMART_TRAFFIC_MODEL"):
+            siapkan_model_100ep()
+
         # Jika bobot tidak tersedia di lokasi default/env, pilih checkpoint secara manual.
         if not os.path.isfile(MODEL_PATH):
             selected_model = filedialog.askopenfilename(
@@ -482,6 +513,21 @@ class TrafficGUI(ctk.CTk):
         ctk.CTkRadioButton(bingkai_mode, text="Otomatis (Adaptif berdasarkan jumlah kendaraan)", variable=self.var_mode, value="OTOMATIS").pack(anchor="w", padx=10, pady=2)
         ctk.CTkRadioButton(bingkai_mode, text="Manual (Paksa Klik)", variable=self.var_mode, value="MANUAL").pack(anchor="w", padx=10, pady=2)
 
+        # Pengaturan sensitivitas deteksi YOLO.
+        bingkai_deteksi = ctk.CTkFrame(panel_kiri, fg_color="#252525", border_width=1)
+        bingkai_deteksi.pack(fill="x", padx=15, pady=(8, 10))
+        ctk.CTkLabel(bingkai_deteksi, text="SENSITIVITAS DETEKSI", font=("Arial", 12, "bold"), text_color="#5dade2").pack(pady=(7, 2))
+        self.lbl_conf = ctk.CTkLabel(bingkai_deteksi, text=f"Confidence: {CONF:.2f}")
+        self.lbl_conf.pack(anchor="w", padx=10)
+        self.slider_conf = ctk.CTkSlider(bingkai_deteksi, from_=0.05, to=0.80, number_of_steps=75, command=self.ubah_confidence)
+        self.slider_conf.set(CONF)
+        self.slider_conf.pack(fill="x", padx=10, pady=(0, 5))
+        self.lbl_iou = ctk.CTkLabel(bingkai_deteksi, text=f"NMS IoU: {IOU:.2f}")
+        self.lbl_iou.pack(anchor="w", padx=10)
+        self.slider_iou = ctk.CTkSlider(bingkai_deteksi, from_=0.30, to=0.90, number_of_steps=60, command=self.ubah_iou)
+        self.slider_iou.set(IOU)
+        self.slider_iou.pack(fill="x", padx=10, pady=(0, 7))
+
         # Tombol Aksi Kendali
         self.btn_mulai = ctk.CTkButton(panel_kiri, text="Mulai Simulasi", fg_color="#27ae60", hover_color="#1e8449", command=self.action_mulai_simulasi)
         self.btn_mulai.pack(fill="x", padx=15, pady=5)
@@ -491,6 +537,18 @@ class TrafficGUI(ctk.CTk):
 
         self.btn_acak = ctk.CTkButton(panel_kiri, text="Acak Lajur Tanpa Kamera", fg_color="#2980b9", hover_color="#1f618d", command=self.action_acak_input_kendaraan)
         self.btn_acak.pack(fill="x", padx=15, pady=5)
+
+    def ubah_confidence(self, nilai):
+        global CONF
+        CONF = round(float(nilai), 2)
+        if hasattr(self, "lbl_conf"):
+            self.lbl_conf.configure(text=f"Confidence: {CONF:.2f}")
+
+    def ubah_iou(self, nilai):
+        global IOU
+        IOU = round(float(nilai), 2)
+        if hasattr(self, "lbl_iou"):
+            self.lbl_iou.configure(text=f"NMS IoU: {IOU:.2f}")
 
     def bangun_grid_simulasi_kanan(self):
         """Membangun penempatan layout grid 4 kamera dan grafik suara."""
