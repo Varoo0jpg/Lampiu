@@ -338,6 +338,7 @@ class DetektorAudioVideo(threading.Thread):
             worker.start()
         while self.running and any(worker.is_alive() for worker in workers):
             time.sleep(0.1)
+        self.running = False
 
     def stop(self):
         self.running = False
@@ -612,6 +613,7 @@ class TrafficGUI(ctk.CTk):
         self.waktu_hijau_terakhir = {l: time.time() for l in DAFTAR_LAJUR}
         self.detektor = None
         self.audio_video_detector = None
+        self.audio_video_started = False
         self._audio_video_poll_after_id = None
         self.kotak_kamera = {}
         self.label_kamera = {}
@@ -1289,10 +1291,7 @@ class TrafficGUI(ctk.CTk):
             self.label_kamera[l].configure(text=self._teks_kamera(l, "Memuat model YOLO..."))
         # Analisis soundtrack file video lokal per lajur; live CCTV/webcam tidak diasumsikan memiliki audio.
         self.audio_video_detector = DetektorAudioVideo(SUMBER_KAMERA)
-        if self.audio_video_detector.paths:
-            self.audio_video_detector.start()
-            self._audio_video_poll_after_id = self.after(500, self.poll_audio_video)
-        self.detektor = DetektorKamera()
+        # Thread audio baru dimulai setelah detektor video selesai membuka sumber,\n        # agar offset soundtrack mendekati awal pemutaran video.\n        self.detektor = DetektorKamera()
         self.detektor.start()
         self._camera_poll_after_id = self.after(200, self.poll_kamera)
 
@@ -1339,8 +1338,7 @@ class TrafficGUI(ctk.CTk):
                     self.kumpulan_panel[l].kunci(False)
                 print("[!] Detektor gagal:", det.error)
                 return
-            jumlah, frames, confidence_visual = det.ambil()
-            self.confidence_visual_darurat.update(confidence_visual)
+            if (self.audio_video_detector is not None\n                    and self.audio_video_detector.paths\n                    and not self.audio_video_started):\n                self.audio_video_started = True\n                self.audio_video_detector.start()\n                self._audio_video_poll_after_id = self.after(500, self.poll_audio_video)\n            jumlah, frames, confidence_visual = det.ambil()\n            self.confidence_visual_darurat.update(confidence_visual)
             for l in self.lajur_berkamera:
                 panel = self.kumpulan_panel[l]
                 if l not in det.caps:
