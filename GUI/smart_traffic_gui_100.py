@@ -147,7 +147,8 @@ NAMA_KELAS_MODEL = {
 
 def validasi_model_kendaraan(model):
     """Pastikan bobot yang dimuat memiliki 8 kelas dan urutannya sesuai konfigurasi."""
-    nama = getattr(model, "names", None)    if nama is None:
+    nama = getattr(model, "names", None)    
+    if nama is None:
         raise RuntimeError(
             "Model YOLO tidak menyediakan daftar nama kelas. "
             "Periksa MODEL_PATH dan pastikan 100ep.pt merupakan bobot YOLO yang valid."
@@ -296,7 +297,8 @@ class DetektorAudioVideo(threading.Thread):
         with self.lock:
             return dict(self.hasil), dict(self.status)
 
-    def _analisis_lajur(self, lajur, path):        try:
+    def _analisis_lajur(self, lajur, path):        
+        try:
             cap_meta = cv2.VideoCapture(path)
             fps = cap_meta.get(cv2.CAP_PROP_FPS)
             jumlah_frame = cap_meta.get(cv2.CAP_PROP_FRAME_COUNT)
@@ -892,7 +894,8 @@ class TrafficGUI(ctk.CTk):
         # Panel mengisi area bawah tanpa meminta tinggi tambahan dari grid utama.
         # Ini menjaga ukuran empat panel CCTV tetap seperti layout referensi.
         panel = ctk.CTkFrame(self, width=1, height=1, fg_color="#151a21", border_width=1)
-        panel.grid(row=2, column=1, rowspan=2, sticky="nsew", padx=4, pady=4)        panel.grid_propagate(False)
+        panel.grid(row=2, column=1, rowspan=2, sticky="nsew", padx=4, pady=4)        
+        panel.grid_propagate(False)
         panel.grid_columnconfigure(0, weight=1)
         panel.grid_rowconfigure(2, weight=1)
 
@@ -1364,7 +1367,8 @@ class TrafficGUI(ctk.CTk):
                 self.audio_video_started = True
                 self.audio_video_detector.start()
                 self._audio_video_poll_after_id = self.after(500, self.poll_audio_video)
-            jumlah, frames, confidence_visual = det.ambil()            self.confidence_visual_darurat.update(confidence_visual)
+            jumlah, frames, confidence_visual = det.ambil()            
+            self.confidence_visual_darurat.update(confidence_visual)
             for l in self.lajur_berkamera:
                 panel = self.kumpulan_panel[l]
                 if l not in det.caps:
@@ -1513,7 +1517,8 @@ class TrafficGUI(ctk.CTk):
             i = DAFTAR_LAJUR.index(self.lajur_aktif)
             return DAFTAR_LAJUR[(i + 1) % len(DAFTAR_LAJUR)]
 
-        emergency_lane = self.lajur_darurat_terkonfirmasi()        if emergency_lane is not None and emergency_lane != self.lajur_aktif:
+        emergency_lane = self.lajur_darurat_terkonfirmasi()        
+        if emergency_lane is not None and emergency_lane != self.lajur_aktif:
             return emergency_lane
 
         kandidat = [l for l in DAFTAR_LAJUR if l != self.lajur_aktif]
