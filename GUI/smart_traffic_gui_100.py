@@ -668,14 +668,20 @@ class TrafficGUI(ctk.CTk):
             if selected_model:
                 MODEL_PATH = selected_model
 
-        # Pilih video lokal untuk kamera keempat; tiga CCTV berasal dari konfigurasi HLS.
-        self.video_file_path = filedialog.askopenfilename(
-            title="Pilih video lokal untuk Kamera 4",
-            filetypes=[("Video", "*.mp4 *.m4v *.mov *.mkv"), ("Semua file", "*.*")]
+        # Sumber video sudah dipilih melalui launcher smart_traffic_jogja.py.
+        # Jangan membuka dialog kedua di sini: dialog tersebut akan menimpa pilihan
+        # kamera/video yang baru saja dibuat pengguna pada GUI pemilih Jogja.
+        sumber_video_barat = SUMBER_KAMERA.get("Barat")
+        self.video_file_path = (
+            sumber_video_barat
+            if isinstance(sumber_video_barat, str)
+            and os.path.isfile(sumber_video_barat)
+            else None
         )
-        SUMBER_KAMERA["Barat"] = self.video_file_path or ""
         if self.video_file_path:
-            self.lbl_file_audio.configure(text=os.path.basename(self.video_file_path))
+            self.lbl_file_audio.configure(
+                text=f"Kamera 4: {os.path.basename(self.video_file_path)}"
+            )
         # [BARU] Jalankan deteksi kamera
         self.mulai_deteksi()
         self.protocol("WM_DELETE_WINDOW", self.tutup_aplikasi)
@@ -1266,6 +1272,12 @@ class TrafficGUI(ctk.CTk):
             text=f"t={elapsed:.0f}s | {predicted} | Skor agregat {emergency * 100:.1f}%\n{rincian}",
             text_color="#e67e22" if emergency >= AMBANG_SIRENE else "#aab7c4"
         )
+        # Skor agregat YAMNet hanya ditampilkan pada lajur video lokal (Barat).
+        # Ini tetap bersifat observasi dan tidak mengubah fase simulasi.
+        self.perbarui_confidence_audio({
+            lajur: (emergency if lajur == "Barat" else None)
+            for lajur in DAFTAR_LAJUR
+        })
 
     def _hasil_analisis_audio(self, lajur, result, error):
         if error:
