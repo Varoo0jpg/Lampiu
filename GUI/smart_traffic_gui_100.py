@@ -791,18 +791,16 @@ class TrafficGUI(ctk.CTk):
             (None, None),
         )
         self.audio_video_lane, self.video_file_path = selected_local_video
-        bundled_test_video = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Police Cars Fire Trucks And Ambulances Responding Compilation Part 12 - Demonracer2 (360p, h264).mp4")
-        if os.path.isfile(bundled_test_video):
-            self.video_file_path = bundled_test_video
-            self.audio_video_lane = "Utara"
-            SUMBER_KAMERA["Utara"] = bundled_test_video
-            with VIDEO_CONTROL["lock"]:
-                VIDEO_CONTROL["lane"] = "Utara"
-                VIDEO_CONTROL["paused"] = False
-                VIDEO_CONTROL["muted"] = True
-                VIDEO_CONTROL["position"] = 0.0
-                VIDEO_CONTROL["seek_seconds"] = 0.0
-                VIDEO_CONTROL["seek_serial"] += 1
+        # Gunakan hanya video lokal yang benar-benar dipilih pengguna di launcher.
+        # Jangan pernah menyisipkan video bawaan atau mengubah SUMBER_KAMERA Utara.
+        with VIDEO_CONTROL["lock"]:
+            VIDEO_CONTROL["lane"] = self.audio_video_lane or "Utara"
+            VIDEO_CONTROL["paused"] = False
+            VIDEO_CONTROL["muted"] = True
+            VIDEO_CONTROL["position"] = 0.0
+            VIDEO_CONTROL["seek_seconds"] = 0.0
+            VIDEO_CONTROL["seek_serial"] += 1
+            VIDEO_CONTROL["duration"] = 0.0
         if self.video_file_path:
             cap_duration = cv2.VideoCapture(self.video_file_path)
             fps_duration = cap_duration.get(cv2.CAP_PROP_FPS) or 0.0
