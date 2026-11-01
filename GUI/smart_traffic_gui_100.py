@@ -1801,61 +1801,50 @@ class TrafficGUI(ctk.CTk):
         waktu_tunggu = max(0.0, now - self.waktu_hijau_terakhir[lajur])
         return pcu + ALPHA_KOMPENSASI_TUNGGU * waktu_tunggu
 
+    def hitung_alokasi_hijau_siklus(self):
+        """
+        Membagi 120 detik waktu hijau secara proporsional terhadap bobot aktual
+        empat lajur. Satu snapshot dipakai untuk satu putaran penuh agar jumlah
+        durasi keempat lajur tetap tepat 120 detik.
+        """
+        bobot = {
+            lajur: max(0.0, float(self.kumpulan_panel[lajur].ambil_skor_bobot()))
+            for lajur in DAFTAR_LAJUR
+        }
+        total_bobot = sum(bobot.values())
+
+        if total_bobot <= 0:
+            # Tidak ada kendaraan terdeteksi: bagi rata agar semua lajur
+            # tetap memperoleh giliran dan simulasi tidak macet.
+            durasi = {lajur: TOTAL_WAKTU_SIKLUS / len(DAFTAR_LAJUR)
+                      for lajur in DAFTAR_LAJUR}
+        else:
+            durasi = {
+                lajur: (bobot[lajur] / total_bobot) * TOTAL_WAKTU_SIKLUS
+                for lajur in DAFTAR_LAJUR
+            }
+
+        # Konversi ke detik bulat dengan metode largest remainder sehingga
+        # jumlah akhirnya tetap tepat 120 detik.
+        hasil = {lajur: int(np.floor(durasi[lajur])) for lajur in DAFTAR_LAJUR}
+        sisa = int(TOTAL_WAKTU_SIKLUS - sum(hasil.values()))
+        urutan_sisa = sorted(
+            DAFTAR_LAJUR,
+            key=lambda lajur: durasi[lajur] - hasil[lajur],
+            reverse=True,
+        )
+        for indeks in range(sisa):
+            hasil[urutan_sisa[indeks % len(urutan_sisa)]] += 1
+
+        return hasil
+
     def hitung_durasi_fase_hijau(self, lajur_target):
-        """
-        Alokasi hijau proporsional terhadap PCU yang sudah dikompensasi waktu tunggu.
-        Siklus 120 detik mencakup 4 fase kuning dan 4 fase all-red.
-        """
+        """Mengambil alokasi durasi lajur dari snapshot siklus aktif."""
         if lajur_target not in DAFTAR_LAJUR:
             raise ValueError(f"Lajur tidak dikenal: {lajur_target}")
-
-        waktu_clearance = len(DAFTAR_LAJUR) * (FASE_KUNING + FASE_ALL_RED)
-        total_hijau = TOTAL_WAKTU_SIKLUS - waktu_clearance
-        batas_min, batas_max = FASE_HIJAU_MIN, FASE_HIJAU_MAX
-        n = len(DAFTAR_LAJUR)
-
-        if not (n * batas_min <= total_hijau <= n * batas_max):
-            raise ValueError("Parameter minimum/maksimum hijau tidak kompatibel dengan siklus dan clearance.")
-
-        now = time.time()
-        skor = {l: max(0.0, self.skor_lajur_disesuaikan(l, now)) for l in DAFTAR_LAJUR}
-        skor_maks = max(skor.values(), default=0.0)
-        bobot = ({l: 1.0 for l in DAFTAR_LAJUR} if skor_maks <= 0 else
-                 {l: max(skor[l] / skor_maks, 1e-9) for l in DAFTAR_LAJUR})
-
-        def total_alokasi(faktor):
-            return sum(min(batas_max, max(batas_min, faktor * bobot[l])) for l in DAFTAR_LAJUR)
-
-        lo, hi = 0.0, 1.0
-        while total_alokasi(hi) < total_hijau:
-            hi *= 2.0
-        for _ in range(100):
-            mid = (lo + hi) / 2.0
-            if total_alokasi(mid) < total_hijau:
-                lo = mid
-            else:
-                hi = mid
-
-        raw = {l: min(batas_max, max(batas_min, hi * bobot[l])) for l in DAFTAR_LAJUR}
-        result = {l: int(np.floor(raw[l] + 1e-9)) for l in DAFTAR_LAJUR}
-        remaining = total_hijau - sum(result.values())
-        order = sorted(DAFTAR_LAJUR, key=lambda l: raw[l] - result[l], reverse=True)
-
-        while remaining > 0:
-            changed = False
-            for l in order:
-                if result[l] < batas_max:
-                    result[l] += 1
-                    remaining -= 1
-                    changed = True
-                    if remaining == 0:
-                        break
-            if not changed:
-                raise ValueError("Sisa durasi hijau tidak dapat dialokasikan.")
-
-        if sum(result.values()) != total_hijau or any(not batas_min <= v <= batas_max for v in result.values()):
-            raise ValueError("Hasil alokasi hijau melanggar total siklus atau batas fase.")
-        return result[lajur_target]
+        if not getattr(self, "alokasi_hijau_siklus", None):
+            self.alokasi_hijau_siklus = self.hitung_alokasi_hijau_siklus()
+        return self.alokasi_hijau_siklus[lajur_target]
 
     def emergency_dual_confirmed(self, lajur):
         """Konfirmasi AND: confidence YOLO darurat dan skor audio harus sama-sama lolos."""
@@ -1874,24 +1863,12 @@ class TrafficGUI(ctk.CTk):
             self.skor_lajur_disesuaikan(l)        ))
 
     def pilih_lajur_berikut(self):
-        """Prioritas emergency hanya aktif jika visual AND audio terkonfirmasi."""
+        """Pergantian lajur selalu mengikuti urutan searah jarum jam."""
         if self.lajur_terpaksa:
             return self.lajur_terpaksa
 
-        if self.var_mode.get() == "MANUAL" or PILIH_LAJUR_BERIKUT == "BERGILIR":
-            i = DAFTAR_LAJUR.index(self.lajur_aktif)
-            return DAFTAR_LAJUR[(i + 1) % len(DAFTAR_LAJUR)]
-
-        emergency_lane = self.lajur_darurat_terkonfirmasi()        
-        if emergency_lane is not None and emergency_lane != self.lajur_aktif:
-            return emergency_lane
-
-        kandidat = [l for l in DAFTAR_LAJUR if l != self.lajur_aktif]
-        now = time.time()
-        return max(kandidat, key=lambda l: (
-            self.skor_lajur_disesuaikan(l, now),
-            now - self.waktu_hijau_terakhir[l]
-        ))
+        indeks = DAFTAR_LAJUR.index(self.lajur_aktif)
+        return DAFTAR_LAJUR[(indeks + 1) % len(DAFTAR_LAJUR)]
 
     def siklus_transisi_fase(self):
         """Urutan aman: HIJAU -> KUNING -> ALL_RED -> HIJAU."""
@@ -1907,6 +1884,10 @@ class TrafficGUI(ctk.CTk):
 
         # All-red selesai: baru pindahkan hak jalan ke pendekat berikutnya.
         lajur_baru = self.pilih_lajur_berikut()
+        # Saat putaran kembali ke Utara, ambil snapshot bobot baru untuk
+        # putaran berikutnya. Dalam satu putaran, keempat durasi tetap konsisten.
+        if lajur_baru == DAFTAR_LAJUR[0]:
+            self.alokasi_hijau_siklus = self.hitung_alokasi_hijau_siklus()
         self.lajur_aktif = lajur_baru
         self.lajur_terpaksa = None
         self.fase_saat_ini = "HIJAU"
@@ -1976,6 +1957,7 @@ class TrafficGUI(ctk.CTk):
         # Hitung lebih dahulu sebelum mengubah status/tombol agar kegagalan
         # perhitungan tidak meninggalkan GUI dalam kondisi setengah aktif.
         try:
+            self.alokasi_hijau_siklus = self.hitung_alokasi_hijau_siklus()
             durasi_awal = self.hitung_durasi_fase_hijau(self.lajur_aktif)
         except (ValueError, KeyError, TypeError) as exc:
             messagebox.showerror(
