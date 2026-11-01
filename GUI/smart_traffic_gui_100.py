@@ -1291,7 +1291,9 @@ class TrafficGUI(ctk.CTk):
             self.label_kamera[l].configure(text=self._teks_kamera(l, "Memuat model YOLO..."))
         # Analisis soundtrack file video lokal per lajur; live CCTV/webcam tidak diasumsikan memiliki audio.
         self.audio_video_detector = DetektorAudioVideo(SUMBER_KAMERA)
-        # Thread audio baru dimulai setelah detektor video selesai membuka sumber,\n        # agar offset soundtrack mendekati awal pemutaran video.\n        self.detektor = DetektorKamera()
+        # Thread audio baru dimulai setelah detektor video selesai membuka sumber,
+        # agar offset soundtrack mendekati awal pemutaran video.
+        self.detektor = DetektorKamera()
         self.detektor.start()
         self._camera_poll_after_id = self.after(200, self.poll_kamera)
 
@@ -1338,7 +1340,13 @@ class TrafficGUI(ctk.CTk):
                     self.kumpulan_panel[l].kunci(False)
                 print("[!] Detektor gagal:", det.error)
                 return
-            if (self.audio_video_detector is not None\n                    and self.audio_video_detector.paths\n                    and not self.audio_video_started):\n                self.audio_video_started = True\n                self.audio_video_detector.start()\n                self._audio_video_poll_after_id = self.after(500, self.poll_audio_video)\n            jumlah, frames, confidence_visual = det.ambil()\n            self.confidence_visual_darurat.update(confidence_visual)
+            if (self.audio_video_detector is not None
+                    and self.audio_video_detector.paths
+                    and not self.audio_video_started):
+                self.audio_video_started = True
+                self.audio_video_detector.start()
+                self._audio_video_poll_after_id = self.after(500, self.poll_audio_video)
+            jumlah, frames, confidence_visual = det.ambil()\n            self.confidence_visual_darurat.update(confidence_visual)
             for l in self.lajur_berkamera:
                 panel = self.kumpulan_panel[l]
                 if l not in det.caps:
