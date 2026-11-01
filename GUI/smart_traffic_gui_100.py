@@ -211,6 +211,110 @@ def resolve_sumber(sumber):
     return sumber
 
 
+
+
+def hitung_skor_sirene(audio, sr):
+    """Skor heuristik indikasi sirene; bukan probabilitas model terlatih."""
+    import librosa
+    if audio is None or len(audio) < sr // 2:
+        raise ValueError("Potongan audio terlalu pendek atau kosong.")
+    stft = np.abs(librosa.stft(audio, n_fft=2048, hop_length=256))
+    frekuensi = librosa.fft_frequencies(sr=sr, n_fft=2048)
+    pita = (frekuensi >= 600) & (frekuensi <= 1800)
+    rentang = (frekuensi >= 200) & (frekuensi <= 4000)
+    if not np.any(pita) or not np.any(rentang):
+        raise ValueError("Rentang frekuensi audio tidak mencukupi.")
+    energi_pita = float(np.mean(stft[pita] ** 2))
+    energi_total = float(np.mean(stft[rentang] ** 2)) + 1e-12
+    rasio = min(1.0, energi_pita / energi_total)
+    spektrum_pita = stft[pita]
+    puncak = frekuensi[pita][np.argmax(spektrum_pita, axis=0)]
+    perubahan = float(np.mean(np.abs(np.diff(puncak)))) if len(puncak) > 1 else 0.0
+    modulasi = min(1.0, perubahan / 180.0)
+    return max(0.0, min(1.0, 0.65 * rasio + 0.35 * modulasi))
+
+
+class DetektorAudioVideo(threading.Thread):
+    """Menganalisis audio tertanam pada file video lokal untuk setiap lajur."""
+
+    EKSTENSI_VIDEO = (".mp4", ".m4v", ".mov", ".mkv")
+
+    def __init__(self, sumber_per_lajur):
+        super().__init__(daemon=True)
+        self.running = True
+        self.lock = threading.Lock()
+        self.hasil = {}
+        self.status = {}
+        self.paths = {
+            lajur: sumber for lajur, sumber in sumber_per_lajur.items()
+            if isinstance(sumber, str) and os.path.isfile(sumber)
+            and sumber.lower().endswith(self.EKSTENSI_VIDEO)
+        }
+        for lajur in self.paths:
+            self.hasil[lajur] = None
+            self.status[lajur] = "Menunggu audio internal video"
+
+    def _set_hasil(self, lajur, nilai, status):
+        with self.lock:
+            self.hasil[lajur] = nilai
+            self.status[lajur] = status
+
+    def ambil(self):
+        with self.lock:
+            return dict(self.hasil), dict(self.status)
+
+    def _analisis_lajur(self, lajur, path):
+        try:
+            import librosa
+            cap_meta = cv2.VideoCapture(path)
+            fps = cap_meta.get(cv2.CAP_PROP_FPS)
+            jumlah_frame = cap_meta.get(cv2.CAP_PROP_FRAME_COUNT)
+            cap_meta.release()
+            durasi = (jumlah_frame / fps) if fps and fps > 0 else 0.0
+            waktu_mulai = time.monotonic()
+
+            while self.running:
+                offset = max(0.0, time.monotonic() - waktu_mulai)
+                if durasi > 0:
+                    offset %= durasi
+                try:
+                    audio, sr = librosa.load(
+                        path, sr=16000, mono=True, offset=offset, duration=3.0
+                    )
+                    if audio.size < sr // 2:
+                        waktu_mulai = time.monotonic()
+                        time.sleep(0.2)
+                        continue
+                    skor = hitung_skor_sirene(audio, sr)
+                    self._set_hasil(lajur, skor, "Audio internal video aktif")
+                except Exception as exc:
+                    self._set_hasil(
+                        lajur, None, f"Audio internal tidak tersedia/terbaca: {exc}"
+                    )
+                    return
+                for _ in range(10):
+                    if not self.running:
+                        break
+                    time.sleep(0.1)
+        except Exception as exc:
+            self._set_hasil(lajur, None, f"Gagal memulai analisis audio: {exc}")
+
+    def run(self):
+        workers = [
+            threading.Thread(target=self._analisis_lajur, args=(lajur, path), daemon=True)
+            for lajur, path in self.paths.items()
+        ]
+        for worker in workers:
+            worker.start()
+        while self.running and any(worker.is_alive() for worker in workers):
+            time.sleep(0.1)
+
+    def stop(self):
+        self.running = False
+        if self.is_alive() and threading.current_thread() is not self:
+            self.join(timeout=1.5)
+
+
 class DetektorKamera(threading.Thread):
     """Membaca semua kamera, deteksi YOLO (batch), hitung kendaraan per jenis dalam ROI."""
 
@@ -477,6 +581,8 @@ class TrafficGUI(ctk.CTk):
         self._closing = False
         self.waktu_hijau_terakhir = {l: time.time() for l in DAFTAR_LAJUR}
         self.detektor = None
+        self.audio_video_detector = None
+        self._audio_video_poll_after_id = None
         self.kotak_kamera = {}
         self.label_kamera = {}
         self.gambar_kamera = {}
@@ -625,7 +731,7 @@ class TrafficGUI(ctk.CTk):
         ).pack(pady=(8, 1))
         ctk.CTkLabel(
             f_suara1,
-            text="Probabilitas sirene per simpang",
+            text="Skor indikasi sirene per lajur",
             font=("Arial", 9),
             text_color="#aab7c4",
         ).pack(pady=(0, 4))
@@ -1047,25 +1153,10 @@ class TrafficGUI(ctk.CTk):
 
     def _analisis_audio_worker(self, path, lajur):
         try:
-            # librosa membaca MP3; instalasi: pip install librosa
+            # MP3 manual opsional memakai ekstraktor skor yang sama dengan audio video.
             import librosa
-            import numpy as np
             audio, sr = librosa.load(path, sr=16000, mono=True)
-            if audio.size < sr // 2:
-                raise ValueError("Audio terlalu pendek (minimal sekitar 0,5 detik).")
-            stft = np.abs(librosa.stft(audio, n_fft=2048, hop_length=256))
-            frekuensi = librosa.fft_frequencies(sr=sr, n_fft=2048)
-            pita = (frekuensi >= 600) & (frekuensi <= 1800)
-            rentang = (frekuensi >= 200) & (frekuensi <= 4000)
-            energi_pita = float(np.mean(stft[pita] ** 2))
-            energi_total = float(np.mean(stft[rentang] ** 2)) + 1e-12
-            rasio = min(1.0, energi_pita / energi_total)
-            spektrum_pita = stft[pita]
-            puncak = frekuensi[pita][np.argmax(spektrum_pita, axis=0)]
-            perubahan = float(np.mean(np.abs(np.diff(puncak)))) if len(puncak) > 1 else 0.0
-            # Skor heuristik: energi pada pita sirene + perubahan frekuensi.
-            modulasi = min(1.0, perubahan / 180.0)
-            confidence = max(0.0, min(1.0, 0.65 * rasio + 0.35 * modulasi))
+            confidence = hitung_skor_sirene(audio, sr)
             self.after(0, lambda: self._hasil_analisis_audio(lajur, confidence, None))
         except Exception as exc:
             pesan = str(exc)
@@ -1166,9 +1257,42 @@ class TrafficGUI(ctk.CTk):
             panel.set_jumlah({})            # mulai dari nol
             panel.kunci(True)               # isian diatur kamera
             self.label_kamera[l].configure(text=self._teks_kamera(l, "Memuat model YOLO..."))
+        # Analisis soundtrack file video lokal per lajur; live CCTV/webcam tidak diasumsikan memiliki audio.
+        self.audio_video_detector = DetektorAudioVideo(SUMBER_KAMERA)
+        if self.audio_video_detector.paths:
+            self.audio_video_detector.start()
+            self._audio_video_poll_after_id = self.after(500, self.poll_audio_video)
         self.detektor = DetektorKamera()
         self.detektor.start()
         self._camera_poll_after_id = self.after(200, self.poll_kamera)
+
+    def poll_audio_video(self):
+        """Sinkronkan skor soundtrack video ke panel dan gerbang emergency."""
+        self._audio_video_poll_after_id = None
+        if self._closing or self.audio_video_detector is None:
+            return
+        hasil, status = self.audio_video_detector.ambil()
+        aktif, gagal = [], []
+        for lajur, nilai in hasil.items():
+            widget = self.audio_confidence_widgets[lajur]
+            self.audio_confidence_values[lajur] = nilai
+            if nilai is None:
+                widget["progress"].set(0)
+                widget["persen"].configure(text="--%", text_color="#aab7c4")
+                if status.get(lajur):
+                    gagal.append(f"{lajur}: {status[lajur]}")
+                continue
+            widget["progress"].set(nilai)
+            widget["persen"].configure(text=f"{nilai * 100:.0f}%", text_color="#ffffff")
+            aktif.append(f"{lajur} {nilai * 100:.0f}%")
+        if aktif:
+            self.lbl_status_audio.configure(text="Audio video: " + " | ".join(aktif), text_color="#5dade2")
+        elif gagal:
+            self.lbl_status_audio.configure(text="; ".join(gagal)[:180], text_color="#e67e22")
+        else:
+            self.lbl_status_audio.configure(text="Menunggu audio internal video", text_color="#aab7c4")
+        if not self._closing and self.audio_video_detector.running:
+            self._audio_video_poll_after_id = self.after(1000, self.poll_audio_video)
 
     def poll_kamera(self):
         """Dipanggil berkala di thread GUI: ambil hasil deteksi, perbarui feed dan angka."""
@@ -1216,7 +1340,7 @@ class TrafficGUI(ctk.CTk):
         self._closing = True
 
         # Batalkan callback GUI sebelum widget dihancurkan.
-        for attr in ("_id_ticker", "_research_after_id", "_camera_poll_after_id"):
+        for attr in ("_id_ticker", "_research_after_id", "_camera_poll_after_id", "_audio_video_poll_after_id"):
             callback_id = getattr(self, attr, None)
             if callback_id is not None:
                 try:
@@ -1227,6 +1351,8 @@ class TrafficGUI(ctk.CTk):
 
         if self.detektor is not None:
             self.detektor.stop()
+        if self.audio_video_detector is not None:
+            self.audio_video_detector.stop()
         self.destroy()
 
     # -----------------------------------------------------------
