@@ -671,19 +671,29 @@ class TrafficGUI(ctk.CTk):
         # Sumber video sudah dipilih melalui launcher smart_traffic_jogja.py.
         # Jangan membuka dialog kedua di sini: dialog tersebut akan menimpa pilihan
         # kamera/video yang baru saja dibuat pengguna pada GUI pemilih Jogja.
-        sumber_video_barat = SUMBER_KAMERA.get("Barat")
-        self.video_file_path = (
-            sumber_video_barat
-            if isinstance(sumber_video_barat, str)
-            and os.path.isfile(sumber_video_barat)
-            else None
+        # Ambil soundtrack dari sumber video lokal mana pun yang dipilih pada
+        # launcher Jogja. Audio tidak bergantung pada lajur Barat atau status YOLO.
+        self.video_file_path = next(
+            (
+                sumber for sumber in SUMBER_KAMERA.values()
+                if isinstance(sumber, str)
+                and os.path.isfile(sumber)
+                and not sumber.lower().startswith(("http://", "https://"))
+            ),
+            None,
         )
         if self.video_file_path:
             self.lbl_file_audio.configure(
-                text=f"Kamera 4: {os.path.basename(self.video_file_path)}"
+                text=f"Audio dari video: {os.path.basename(self.video_file_path)}"
             )
-        # [BARU] Jalankan deteksi kamera
+            self.lbl_hasil_mp3.configure(
+                text="Menyiapkan audio video dan model klasifikasi...",
+                text_color="#5dade2",
+            )
+        # Deteksi kamera dan audio dijalankan sebagai dua proses independen.
         self.mulai_deteksi()
+        if self.video_file_path:
+            self.after(500, self.mulai_audio_video_lokal)
         self.protocol("WM_DELETE_WINDOW", self.tutup_aplikasi)
         self._research_after_id = self.after(
             self.research_sample_interval_ms, self.capture_research_sample
@@ -1213,9 +1223,12 @@ class TrafficGUI(ctk.CTk):
             if audio.size == 0:
                 raise RuntimeError("Video tidak memiliki trek audio.")
             # Pemutaran non-blocking; pengguna mendengar soundtrack asli video.
+            # Mulai output audio secara eksplisit. Jika Windows tidak memiliki
+            # perangkat output default yang valid, exception akan ditampilkan di GUI.
+            sd.stop()
             sd.play(audio, samplerate=playback_rate, blocking=False)
             self.after(0, lambda: self.lbl_hasil_mp3.configure(
-                text="Audio video sedang diputar; analisis YAMNet aktif",
+                text="Audio video sedang diputar; YAMNet menganalisis potongan 3 detik",
                 text_color="#5dade2"
             ))
 
@@ -1434,8 +1447,6 @@ class TrafficGUI(ctk.CTk):
                     self.kumpulan_panel[l].kunci(False)
                 print("[!] Detektor gagal:", det.error)
                 return
-            if self.video_file_path and self.audio_playback_thread is None:
-                self.mulai_audio_video_lokal()
             jumlah, frames, confidence_visual = det.ambil()            
             self.confidence_visual_darurat.update(confidence_visual)
             for l in self.lajur_berkamera:
