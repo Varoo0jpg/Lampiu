@@ -147,8 +147,7 @@ NAMA_KELAS_MODEL = {
 
 def validasi_model_kendaraan(model):
     """Pastikan bobot yang dimuat memiliki 8 kelas dan urutannya sesuai konfigurasi."""
-    nama = getattr(model, "names", None)
-    if nama is None:
+    nama = getattr(model, "names", None)    if nama is None:
         raise RuntimeError(
             "Model YOLO tidak menyediakan daftar nama kelas. "
             "Periksa MODEL_PATH dan pastikan 100ep.pt merupakan bobot YOLO yang valid."
@@ -297,8 +296,7 @@ class DetektorAudioVideo(threading.Thread):
         with self.lock:
             return dict(self.hasil), dict(self.status)
 
-    def _analisis_lajur(self, lajur, path):
-        try:
+    def _analisis_lajur(self, lajur, path):        try:
             cap_meta = cv2.VideoCapture(path)
             fps = cap_meta.get(cv2.CAP_PROP_FPS)
             jumlah_frame = cap_meta.get(cv2.CAP_PROP_FRAME_COUNT)
@@ -447,8 +445,7 @@ class DetektorKamera(threading.Thread):
                         f"{nama}={len(nilai)} (conf: {', '.join(f'{c:.2f}' for c in nilai)})"
                         for nama, nilai in ringkasan.items() if nilai
                     ]
-                    print(
-                        f"[DEBUG DETEKSI {lajur_debug}] "
+                    print(                        f"[DEBUG DETEKSI {lajur_debug}] "
                         + (" | ".join(terdeteksi) if terdeteksi else "tidak ada deteksi")
                     )
                 waktu_debug_terakhir = waktu_sekarang
@@ -597,7 +594,6 @@ class TrafficGUI(ctk.CTk):
         self.geometry("1450x850")
         ctk.set_appearance_mode("Dark")
         ctk.set_default_color_theme("blue")
-
         # --- STATE ENGINE SIMULASI INTERNAL ---
         self.simulasi_aktif = False
         self.fase_saat_ini = "HIJAU"     # Status: "HIJAU" atau "KUNING"
@@ -747,8 +743,7 @@ class TrafficGUI(ctk.CTk):
     def ubah_iou(self, nilai):
         global IOU
         IOU = round(float(nilai), 2)
-        if hasattr(self, "lbl_iou"):
-            self.lbl_iou.configure(text=f"NMS IoU: {IOU:.2f}")
+        if hasattr(self, "lbl_iou"):            self.lbl_iou.configure(text=f"NMS IoU: {IOU:.2f}")
 
     def bangun_grid_simulasi_kanan(self):
         """Membangun penempatan layout grid 4 kamera dan grafik suara."""
@@ -897,8 +892,7 @@ class TrafficGUI(ctk.CTk):
         # Panel mengisi area bawah tanpa meminta tinggi tambahan dari grid utama.
         # Ini menjaga ukuran empat panel CCTV tetap seperti layout referensi.
         panel = ctk.CTkFrame(self, width=1, height=1, fg_color="#151a21", border_width=1)
-        panel.grid(row=2, column=1, rowspan=2, sticky="nsew", padx=4, pady=4)
-        panel.grid_propagate(False)
+        panel.grid(row=2, column=1, rowspan=2, sticky="nsew", padx=4, pady=4)        panel.grid_propagate(False)
         panel.grid_columnconfigure(0, weight=1)
         panel.grid_rowconfigure(2, weight=1)
 
@@ -1047,8 +1041,7 @@ class TrafficGUI(ctk.CTk):
                 }
                 self.research_records.append(record)
                 self.research_tree.insert(
-                    "", "end",
-                    values=[record.get(col, "") for col in self.research_columns]
+                    "", "end",                    values=[record.get(col, "") for col in self.research_columns]
                 )
 
             # Maksimal 120 baris pada tampilan; semua catatan tetap tersimpan di memori.
@@ -1093,16 +1086,41 @@ class TrafficGUI(ctk.CTk):
         )
         if not path:
             return
+        # Selaraskan kolom CSV dengan data snapshot dan tabel GUI, termasuk kolom waktu.
+        # DictWriter menulis nilai kosong hanya jika sebuah kolom memang tidak ada di record.
         fields = [
-            "timestamp", "lane", "data_source", *BOBOT_KENDARAAN.keys(),
+            "timestamp", "time", "lane", "data_source", *BOBOT_KENDARAAN.keys(),
             "total_vehicles", "weighted_score", "signal_phase",
             "active_lane", "green_remaining_seconds", "mode"
         ]
-        with open(path, "w", newline="", encoding="utf-8-sig") as f:
-            writer = csv.DictWriter(f, fieldnames=fields)
-            writer.writeheader()
-            writer.writerows(self.research_records)
-        messagebox.showinfo("Ekspor selesai", f"Data mentah tersimpan:\n{path}")
+        rows = []
+        for record in self.research_records:
+            row = {field: record.get(field, "") for field in fields}
+            # Pastikan semua kelas kendaraan tercatat sebagai angka, termasuk nilai nol.
+            for jenis in BOBOT_KENDARAAN:
+                value = row.get(jenis, "")
+                row[jenis] = 0 if value in ("", None) else value
+            rows.append(row)
+
+        if not rows:
+            messagebox.showwarning(
+                "Data kosong",
+                "Belum ada snapshot yang berhasil direkam. Klik Rekam, tunggu minimal 1 detik, lalu ekspor kembali."
+            )
+            return
+
+        try:
+            with open(path, "w", newline="", encoding="utf-8-sig") as f:
+                writer = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore")
+                writer.writeheader()
+                writer.writerows(rows)
+        except OSError as exc:
+            messagebox.showerror("Gagal mengekspor CSV", f"File tidak dapat disimpan:\n{exc}")
+            return
+        messagebox.showinfo(
+            "Ekspor selesai",
+            f"Data mentah tersimpan:\n{path}\nJumlah baris data: {len(rows)}"
+        )
 
     def export_research_summary(self):
         """Buat ringkasan per lajur untuk tabel hasil penelitian."""
@@ -1197,8 +1215,7 @@ class TrafficGUI(ctk.CTk):
 
     def _hasil_analisis_audio(self, lajur, confidence, error):
         if error:
-            self.lbl_hasil_mp3.configure(
-                text=f"Analisis gagal: {error}", text_color="#e74c3c"
+            self.lbl_hasil_mp3.configure(                text=f"Analisis gagal: {error}", text_color="#e74c3c"
             )
             messagebox.showerror(
                 "Analisis audio gagal",
@@ -1347,8 +1364,7 @@ class TrafficGUI(ctk.CTk):
                 self.audio_video_started = True
                 self.audio_video_detector.start()
                 self._audio_video_poll_after_id = self.after(500, self.poll_audio_video)
-            jumlah, frames, confidence_visual = det.ambil()
-            self.confidence_visual_darurat.update(confidence_visual)
+            jumlah, frames, confidence_visual = det.ambil()            self.confidence_visual_darurat.update(confidence_visual)
             for l in self.lajur_berkamera:
                 panel = self.kumpulan_panel[l]
                 if l not in det.caps:
@@ -1497,8 +1513,7 @@ class TrafficGUI(ctk.CTk):
             i = DAFTAR_LAJUR.index(self.lajur_aktif)
             return DAFTAR_LAJUR[(i + 1) % len(DAFTAR_LAJUR)]
 
-        emergency_lane = self.lajur_darurat_terkonfirmasi()
-        if emergency_lane is not None and emergency_lane != self.lajur_aktif:
+        emergency_lane = self.lajur_darurat_terkonfirmasi()        if emergency_lane is not None and emergency_lane != self.lajur_aktif:
             return emergency_lane
 
         kandidat = [l for l in DAFTAR_LAJUR if l != self.lajur_aktif]
@@ -1647,8 +1662,7 @@ class TrafficGUI(ctk.CTk):
         if lajur_tujuan == self.lajur_aktif and self.fase_saat_ini == "HIJAU":
             return
 
-        # Simpan target. Jika transisi sudah berjalan, jangan reset countdown:
-        # target akan diterapkan setelah KUNING dan ALL_RED selesai.
+        # Simpan target. Jika transisi sudah berjalan, jangan reset countdown:        # target akan diterapkan setelah KUNING dan ALL_RED selesai.
         self.lajur_terpaksa = lajur_tujuan
         self.override_manual_aktif = True
         if self.fase_saat_ini == "HIJAU":
