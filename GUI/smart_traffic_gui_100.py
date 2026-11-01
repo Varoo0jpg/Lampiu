@@ -12,6 +12,8 @@ import csv
 import os
 import random
 import statistics
+import shutil
+import subprocess
 import sys
 import threading
 import time
@@ -202,7 +204,7 @@ def resolve_sumber(sumber):
     Sumber lain (indeks kamera, file video, None) dikembalikan apa adanya."""
     if isinstance(sumber, str) and ("youtube.com" in sumber or "youtu.be" in sumber):
         import yt_dlp
-        # Audio tidak dipakai, jadi stream video-saja (bv*) juga boleh
+        # Stream YouTube di sini dipakai untuk video; soundtrack otomatis dianalisis untuk file lokal.
         opsi = {"quiet": True, "noplaylist": True,
                 "format": "bv*[height<=480]/b[height<=480]/bv*/b"}
         with yt_dlp.YoutubeDL(opsi) as ydl:
@@ -211,6 +213,37 @@ def resolve_sumber(sumber):
     return sumber
 
 
+
+
+def ekstrak_audio_video(path, offset, durasi=3.0, sr=16000):
+    """Ekstrak potongan audio internal video memakai FFmpeg tanpa file sementara."""
+    executable = None
+    try:
+        import imageio_ffmpeg
+        executable = imageio_ffmpeg.get_ffmpeg_exe()
+    except ImportError:
+        executable = shutil.which("ffmpeg")
+    if not executable:
+        raise RuntimeError(
+            "FFmpeg tidak ditemukan. Pasang dengan: pip install imageio-ffmpeg"
+        )
+    perintah = [
+        executable, "-hide_banner", "-loglevel", "error",
+        "-ss", f"{max(0.0, float(offset)):.3f}", "-i", path,
+        "-t", str(float(durasi)), "-vn", "-ac", "1", "-ar", str(int(sr)),
+        "-f", "f32le", "pipe:1",
+    ]
+    proses = subprocess.run(
+        perintah, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        timeout=20, check=False
+    )
+    if proses.returncode != 0:
+        detail = proses.stderr.decode("utf-8", errors="replace").strip()
+        raise RuntimeError(detail or "FFmpeg gagal membaca audio internal video.")
+    audio = np.frombuffer(proses.stdout, dtype="<f4").copy()
+    if audio.size == 0:
+        raise ValueError("Video tidak memiliki audio pada rentang waktu ini.")
+    return audio, sr
 
 
 def hitung_skor_sirene(audio, sr):
@@ -265,7 +298,6 @@ class DetektorAudioVideo(threading.Thread):
 
     def _analisis_lajur(self, lajur, path):
         try:
-            import librosa
             cap_meta = cv2.VideoCapture(path)
             fps = cap_meta.get(cv2.CAP_PROP_FPS)
             jumlah_frame = cap_meta.get(cv2.CAP_PROP_FRAME_COUNT)
@@ -278,9 +310,7 @@ class DetektorAudioVideo(threading.Thread):
                 if durasi > 0:
                     offset %= durasi
                 try:
-                    audio, sr = librosa.load(
-                        path, sr=16000, mono=True, offset=offset, duration=3.0
-                    )
+                    audio, sr = ekstrak_audio_video(path, offset, durasi=3.0, sr=16000)
                     if audio.size < sr // 2:
                         waktu_mulai = time.monotonic()
                         time.sleep(0.2)
