@@ -9,6 +9,7 @@
 #   [PERBAIKAN]  = bug pada kode asli yang diperbaiki
 import collections
 import csv
+import importlib
 import os
 import random
 import statistics
@@ -219,7 +220,7 @@ def ekstrak_audio_video(path, offset, durasi=3.0, sr=16000):
     """Ekstrak potongan audio internal video memakai FFmpeg tanpa file sementara."""
     executable = None
     try:
-        import imageio_ffmpeg
+        imageio_ffmpeg = importlib.import_module("imageio_ffmpeg")
         executable = imageio_ffmpeg.get_ffmpeg_exe()
     except ImportError:
         executable = shutil.which("ffmpeg")
@@ -1346,7 +1347,8 @@ class TrafficGUI(ctk.CTk):
                 self.audio_video_started = True
                 self.audio_video_detector.start()
                 self._audio_video_poll_after_id = self.after(500, self.poll_audio_video)
-            jumlah, frames, confidence_visual = det.ambil()\n            self.confidence_visual_darurat.update(confidence_visual)
+            jumlah, frames, confidence_visual = det.ambil()
+            self.confidence_visual_darurat.update(confidence_visual)
             for l in self.lajur_berkamera:
                 panel = self.kumpulan_panel[l]
                 if l not in det.caps:
