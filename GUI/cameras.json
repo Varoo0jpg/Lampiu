@@ -1348,5 +1348,477 @@
     "lon": "110.35251060338831",
     "headers": {},
     "alive": true
+  },
+  {
+    "id": "200",
+    "name": "ATCS Gondomanan",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_Gondomanan.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "201",
+    "name": "ATCS Wirobrajan",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_Wirobrajan.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "202",
+    "name": "ATCS Gramedia",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_Gramedia.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "203",
+    "name": "ATCS Jetis",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_Jetis.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "204",
+    "name": "ATCS SimpangTerbanUtara",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_SimpangTerbanUtara.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "205",
+    "name": "ATCS Serangan",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_Serangan.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "206",
+    "name": "ATCS SimpangDemanganUtara",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_SimpangDemanganUtara.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "207",
+    "name": "ATCS UKDW",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_UKDW.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "208",
+    "name": "ATCS APMD",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_APMD.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "209",
+    "name": "ATCS SimpangTerbanTimur",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_SimpangTerbanTimur.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "210",
+    "name": "ATCS SimpangDemanganSelatan",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_SimpangDemanganSelatan.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "211",
+    "name": "ATCS SimpangTerbanBarat",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_SimpangTerbanBarat.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "212",
+    "name": "ATCS SimpangBalaikotaTimur",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_SimpangBalaikotaTimur.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "213",
+    "name": "ATCS Warungboto1",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_Warungboto1.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "214",
+    "name": "ATCS Simpang_KolSugiono2",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_Simpang_KolSugiono2.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "215",
+    "name": "ATCS SimpangPasarTeloUtara",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_SimpangPasarTeloUtara.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "216",
+    "name": "ATCS KMNol",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_KMNol.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "217",
+    "name": "ATCS BPK",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_BPK.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "218",
+    "name": "ATCS ViewSimpangTugu",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_ViewSimpangTugu.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "219",
+    "name": "ATCS ViewBukitKlangon",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_ViewBukitKlangon.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "220",
+    "name": "ATCS ViewAlunAlunKidul",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_ViewAlunAlunKidul.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "221",
+    "name": "ATCS ViewBaronTimur",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_ViewBaronTimur.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "222",
+    "name": "ATCS ViewSambisari",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_ViewSambisari.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "223",
+    "name": "ATCS Juadi",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_Juadi.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "224",
+    "name": "ATCS SimpangAtmosukarto",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_SimpangAtmosukarto.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "225",
+    "name": "ATCS SimpangDeBritto",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_SimpangDeBritto.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "226",
+    "name": "ATCS Sajiono",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_Sajiono.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "227",
+    "name": "ATCS SimpangMandalakrida",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_SimpangMandalakrida.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "228",
+    "name": "ATCS SimpangBasen",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_SimpangBasen.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "229",
+    "name": "ATCS Warungboto2",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_Warungboto2.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "230",
+    "name": "ATCS Simpang_MenteriSupeno2",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_Simpang_MenteriSupeno2.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "231",
+    "name": "ATCS MargoUtomo_SelatanOlive",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_MargoUtomo_SelatanOlive.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "232",
+    "name": "ATCS MargoUtomo_GowonganLor",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_MargoUtomo_GowonganLor.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "233",
+    "name": "ATCS MargoUtomo_WismaRatih",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_MargoUtomo_WismaRatih.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "234",
+    "name": "ATCS SimpangGambiranBarat",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_SimpangGambiranBarat.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "235",
+    "name": "ATCS SimpangRejowinangunTimur",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_SimpangRejowinangunTimur.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "236",
+    "name": "ATCS Simpang_SugengJeroni2",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_Simpang_SugengJeroni2.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "237",
+    "name": "ATCS MargoUtomo_TokoCatWahyu",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_MargoUtomo_TokoCatWahyu.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "238",
+    "name": "ATCS SimpangBalaikota",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_SimpangBalaikota.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "239",
+    "name": "ATCS AhmadJazuli",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_AhmadJazuli.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "240",
+    "name": "ATCS FMNoto",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_FMNoto.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "241",
+    "name": "ATCS SimpangAmongrogoTimur",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_SimpangAmongrogoTimur.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "242",
+    "name": "ATCS ParkiranNgabean",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_ParkiranNgabean.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "243",
+    "name": "ATCS SimpangGambiranTimur",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_SimpangGambiranTimur.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "244",
+    "name": "ATCS Jlagran",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_Jlagran.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "245",
+    "name": "ATCS SimpangPatangpuluhan",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_SimpangPatangpuluhan.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "246",
+    "name": "ATCS SimpangBorobudurPlaza",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_SimpangBorobudurPlaza.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "247",
+    "name": "ATCS SimpangMelia",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_SimpangMelia.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "248",
+    "name": "ATCS Simpang_MenteriSupeno1",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_Simpang_MenteriSupeno1.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "249",
+    "name": "ATCS Simpang_SugengJeroni1",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_Simpang_SugengJeroni1.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "250",
+    "name": "ATCS YosSudarso",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_YosSudarso.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "251",
+    "name": "ATCS Terban",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_Terban.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "252",
+    "name": "ATCS SimpangBausasran",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_SimpangBausasran.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "253",
+    "name": "ATCS Pingit",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_Pingit.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "254",
+    "name": "ATCS MargoUtomo_WijayaBaruTravel",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_MargoUtomo_WijayaBaruTravel.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "255",
+    "name": "ATCS Simpang_PasarGading2",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_Simpang_PasarGading2.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "256",
+    "name": "ATCS SimpangJatikencana",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_SimpangJatikencana.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "257",
+    "name": "ATCS KyaiMojo1",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_KyaiMojo1.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
+  },
+  {
+    "id": "258",
+    "name": "ATCS SimpangGaleriaTImurSelatan",
+    "url": "https://cctvjss.jogjakota.go.id/atcs/ATCS_SimpangGaleriaTImurSelatan.stream/playlist.m3u8",
+    "headers": {},
+    "alive": true,
+    "source_note": "URL kandidat berdasarkan pola endpoint dan daftar lokasi crawler publik; status live belum diverifikasi"
   }
 ]
