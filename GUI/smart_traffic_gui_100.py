@@ -673,15 +673,17 @@ class TrafficGUI(ctk.CTk):
         # kamera/video yang baru saja dibuat pengguna pada GUI pemilih Jogja.
         # Ambil soundtrack dari sumber video lokal mana pun yang dipilih pada
         # launcher Jogja. Audio tidak bergantung pada lajur Barat atau status YOLO.
-        self.video_file_path = next(
+        self.audio_video_lane = None
+        selected_local_video = next(
             (
-                sumber for sumber in SUMBER_KAMERA.values()
+                (lajur, sumber) for lajur, sumber in SUMBER_KAMERA.items()
                 if isinstance(sumber, str)
                 and os.path.isfile(sumber)
                 and not sumber.lower().startswith(("http://", "https://"))
             ),
-            None,
+            (None, None),
         )
+        self.audio_video_lane, self.video_file_path = selected_local_video
         if self.video_file_path:
             self.lbl_file_audio.configure(
                 text=f"Audio dari video: {os.path.basename(self.video_file_path)}"
@@ -1208,12 +1210,12 @@ class TrafficGUI(ctk.CTk):
         self.audio_playback_stop.clear()
         self.audio_playback_thread = threading.Thread(
             target=self._audio_video_worker,
-            args=(self.video_file_path,),
+            args=(self.audio_video_lane, self.video_file_path),
             daemon=True
         )
         self.audio_playback_thread.start()
 
-    def _audio_video_worker(self, video_path):
+    def _audio_video_worker(self, lajur, video_path):
         try:
             from video_audio import decode_video_audio
             from audio_siren import classify_audio_waveform
@@ -1256,7 +1258,11 @@ class TrafficGUI(ctk.CTk):
                 )
                 result = classify_audio_waveform(mono16, sample_rate=16000)
                 elapsed = start / playback_rate
-                self.after(0, lambda r=result, t=elapsed: self._hasil_audio_video(r, t))
+                self.after(
+                    0,
+                    lambda r=result, t=elapsed, lane=lajur:
+                        self._hasil_audio_video(lane, r, t)
+                )
             if self.audio_playback_stop.is_set():
                 sd.stop()
             else:
@@ -1273,7 +1279,7 @@ class TrafficGUI(ctk.CTk):
                     text_color="#e74c3c"
                 ))
 
-    def _hasil_audio_video(self, result, elapsed):
+    def _hasil_audio_video(self, lajur, result, elapsed):
         probabilities = result["probabilities"]
         emergency = result["emergency_score"]
         predicted = result["predicted_class"]
@@ -1285,11 +1291,11 @@ class TrafficGUI(ctk.CTk):
             text=f"t={elapsed:.0f}s | {predicted} | Skor agregat {emergency * 100:.1f}%\n{rincian}",
             text_color="#e67e22" if emergency >= AMBANG_SIRENE else "#aab7c4"
         )
-        # Skor agregat YAMNet hanya ditampilkan pada lajur video lokal (Barat).
-        # Ini tetap bersifat observasi dan tidak mengubah fase simulasi.
+        # Pemetaan mengikuti lajur tempat video lokal dipilih pada launcher.
+        # Audio tetap bersifat observasi dan tidak mengubah fase simulasi.
         self.perbarui_confidence_audio({
-            lajur: (emergency if lajur == "Barat" else None)
-            for lajur in DAFTAR_LAJUR
+            nama_lajur: (emergency if nama_lajur == lajur else None)
+            for nama_lajur in DAFTAR_LAJUR
         })
 
     def _hasil_analisis_audio(self, lajur, result, error):
