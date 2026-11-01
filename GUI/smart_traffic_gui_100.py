@@ -1207,32 +1207,46 @@ class TrafficGUI(ctk.CTk):
 
     def _analisis_audio_worker(self, path, lajur):
         try:
-            # MP3 manual opsional memakai ekstraktor skor yang sama dengan audio video.
-            import librosa
-            audio, sr = librosa.load(path, sr=16000, mono=True)
-            confidence = hitung_skor_sirene(audio, sr)
-            self.after(0, lambda: self._hasil_analisis_audio(lajur, confidence, None))
+            # Klasifikasi audio pasif: hasil hanya ditampilkan, tidak mengubah fase lampu.
+            from audio_siren import classify_audio_file
+            result = classify_audio_file(path)
+            if not self._closing:
+                self.after(0, lambda: self._hasil_analisis_audio(lajur, result, None))
         except Exception as exc:
             pesan = str(exc)
-            self.after(0, lambda: self._hasil_analisis_audio(lajur, None, pesan))
+            if not self._closing:
+                self.after(0, lambda: self._hasil_analisis_audio(lajur, None, pesan))
 
-    def _hasil_analisis_audio(self, lajur, confidence, error):
+    def _hasil_analisis_audio(self, lajur, result, error):
         if error:
-            self.lbl_hasil_mp3.configure(                text=f"Analisis gagal: {error}", text_color="#e74c3c"
+            self.lbl_hasil_mp3.configure(
+                text=f"Analisis gagal: {error}", text_color="#e74c3c"
             )
             messagebox.showerror(
                 "Analisis audio gagal",
-                "Pastikan librosa dan dependensi audio terpasang.\n"
-                "Jalankan: pip install librosa\n\n" + error
+                "Periksa instalasi TensorFlow, TensorFlow Hub, librosa, dan joblib. "
+                "YAMNet memerlukan koneksi internet pada pemuatan pertama.\\n\\n" + error
             )
             return
-        hasil = {l: None for l in DAFTAR_LAJUR}
-        hasil[lajur] = confidence
-        self.perbarui_confidence_audio(hasil)
-        status = "SIRENE TERINDIKASI" if confidence >= AMBANG_SIRENE else "Tidak melewati ambang sirene"
+
+        probabilities = result["probabilities"]
+        confidence = float(result["emergency_score"])
+        predicted = result["predicted_class"]
+        status = (
+            "INDIKASI AUDIO DARURAT"
+            if confidence >= AMBANG_SIRENE
+            else "Indikasi audio darurat rendah"
+        )
         warna = "#e67e22" if confidence >= AMBANG_SIRENE else "#aab7c4"
+        rincian = " | ".join(
+            f"{nama}: {nilai * 100:.1f}%"
+            for nama, nilai in probabilities.items()
+        )
         self.lbl_hasil_mp3.configure(
-            text=f"{lajur}: {status} ({confidence * 100:.1f}%)",
+            text=(
+                f"{lajur}: {status} ({confidence * 100:.1f}%) | "
+                f"Prediksi: {predicted}\\n{rincian}"
+            ),
             text_color=warna
         )
 
