@@ -1053,6 +1053,13 @@ class TrafficGUI(ctk.CTk):
     def toggle_video_mute(self):
         with VIDEO_CONTROL["lock"]:
             VIDEO_CONTROL["muted"] = not VIDEO_CONTROL["muted"]
+            muted = VIDEO_CONTROL["muted"]
+        if muted:
+            try:
+                import sounddevice as sd
+                sd.stop()
+            except Exception:
+                pass
 
     def seek_video(self, value):
         if self._video_slider_updating:
@@ -1478,6 +1485,9 @@ class TrafficGUI(ctk.CTk):
                     np.asarray(mono, dtype=np.float32), orig_sr=playback_rate, target_sr=16000
                 )
                 result = classify_audio_waveform(mono16, sample_rate=16000)
+                if muted:
+                    # Saat mute, tetap pertahankan laju analisis mengikuti waktu video.
+                    self.audio_playback_stop.wait(len(chunk) / float(playback_rate))
                 elapsed = cursor / playback_rate
                 cursor += len(chunk)
                 with VIDEO_CONTROL["lock"]:
