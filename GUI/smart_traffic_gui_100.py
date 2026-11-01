@@ -998,6 +998,8 @@ class TrafficGUI(ctk.CTk):
     def toggle_video_pause(self):
         with VIDEO_CONTROL["lock"]:
             VIDEO_CONTROL["paused"] = not VIDEO_CONTROL["paused"]
+        if self.audio_playback_thread is None:
+            self.mulai_audio_video_lokal()
 
     def seek_video(self, value):
         if self._video_slider_updating:
@@ -1037,6 +1039,9 @@ class TrafficGUI(ctk.CTk):
             sd.stop()
         except Exception:
             pass
+        old_audio_thread = self.audio_playback_thread
+        if old_audio_thread is not None and old_audio_thread.is_alive():
+            old_audio_thread.join(timeout=2.0)
         self.audio_playback_thread = None
         self.lbl_file_audio.configure(text=f"Audio dari video: {os.path.basename(self.video_file_path)} | Lajur {new_lane}")
         self.after(150, self.mulai_audio_video_lokal)
@@ -1432,6 +1437,8 @@ class TrafficGUI(ctk.CTk):
                     text=f"Audio video gagal: {pesan[:180]}",
                     text_color="#e74c3c"
                 ))
+        finally:
+            self.audio_playback_thread = None
 
     def _hasil_audio_video(self, lajur, result, elapsed):
         probabilities = result["probabilities"]
