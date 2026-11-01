@@ -397,7 +397,8 @@ class DetektorKamera(threading.Thread):
             else:
                 print(f"[!] Sumber lajur {lajur} ({sumber}) tidak terbuka")
 
-    def run(self):        try:
+    def run(self):
+        try:
             from ultralytics import YOLO
             model = YOLO(MODEL_PATH)
             validasi_model_kendaraan(model)
