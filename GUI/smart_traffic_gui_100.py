@@ -71,7 +71,7 @@ HEX_DARK_BG = "#1e2530"
 # Tiga URL HLS CCTV Kota Yogyakarta dibaca dari GUI/cctv_sources.json.
 # Kamera keempat menggunakan video lokal yang dipilih pengguna saat aplikasi dibuka.
 def muat_konfigurasi_sumber():
-    config_path = resource_path("cctv_sources.json")
+    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cctv_sources.json")
     defaults = {"Utara": "", "Timur": "", "Selatan": "", "Barat": ""}
     try:
         import json
@@ -375,7 +375,7 @@ class DetektorKamera(threading.Thread):
 
     def _buka_sumber(self):
         for lajur, sumber in SUMBER_KAMERA.items():
-            if sumber is None:
+            if not sumber:
                 continue
             try:
                 sumber_nyata = resolve_sumber(sumber)
@@ -1219,8 +1219,13 @@ class TrafficGUI(ctk.CTk):
             import numpy as np
             frames_per_window = playback_rate * 3
             total_frames = len(audio)
+            playback_started = time.monotonic()
             for start in range(0, total_frames, frames_per_window):
                 if self.audio_playback_stop.is_set() or self._closing:
+                    break
+                target_time = start / playback_rate
+                delay = target_time - (time.monotonic() - playback_started)
+                if delay > 0 and self.audio_playback_stop.wait(delay):
                     break
                 chunk = audio[start:start + frames_per_window]
                 if len(chunk) < playback_rate // 2:
@@ -1233,9 +1238,6 @@ class TrafficGUI(ctk.CTk):
                 result = classify_audio_waveform(mono16, sample_rate=16000)
                 elapsed = start / playback_rate
                 self.after(0, lambda r=result, t=elapsed: self._hasil_audio_video(r, t))
-                # Jeda chunk mengikuti laju real-time agar hasil tidak mendahului audio.
-                if self.audio_playback_stop.wait(3.0):
-                    break
             if self.audio_playback_stop.is_set():
                 sd.stop()
             else:
@@ -1364,7 +1366,7 @@ class TrafficGUI(ctk.CTk):
         return f"CAMERA {nomor}\n(Lajur {lajur})\n{pesan}"
 
     def mulai_deteksi(self):
-        self.lajur_berkamera = [l for l in DAFTAR_LAJUR if SUMBER_KAMERA[l] is not None]
+        self.lajur_berkamera = [l for l in DAFTAR_LAJUR if bool(SUMBER_KAMERA[l])]
         if not self.lajur_berkamera:
             return
         for l in self.lajur_berkamera:
