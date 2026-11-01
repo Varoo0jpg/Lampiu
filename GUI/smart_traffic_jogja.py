@@ -35,6 +35,8 @@ import smart_traffic_gui_100 as base_gui
 
 HOST_CCTV_DIIZINKAN = "cctvjss.jogjakota.go.id"
 OPSIONAL_NONAKTIF = "Nonaktif"
+NAMA_VIDEO_DEFAULT = "Police Cars Fire Trucks And Ambulances Responding Compilation Part 12 - Demonracer2 (360p, h264).mp4"
+VIDEO_DEFAULT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), NAMA_VIDEO_DEFAULT)
 OPSIONAL_BAWAAN = "Sumber bawaan"
 OPSIONAL_WEBCAM = ("Webcam 0", "Webcam 1", "Webcam 2")
 
@@ -160,8 +162,8 @@ class PemilihSumber(tk.Tk):
         tk.Label(
             container,
             text=(
-                "Pilih CCTV Jogja, sumber bawaan, webcam, atau video lokal. "
-                "Untuk pengujian pertama, disarankan memilih satu CCTV."
+                "Lajur Utara otomatis menggunakan video MP4 bawaan. "
+                "Pilih sumber CCTV atau video lokal untuk lajur Timur, Selatan, dan Barat."
             ),
             bg="#171d26",
             fg="#b0b8c2",
@@ -206,6 +208,18 @@ class PemilihSumber(tk.Tk):
                 width=13,
                 anchor="w",
             ).grid(row=row, column=0, padx=(2, 12), pady=9, sticky="w")
+
+            if lane == "Utara":
+                variable = StringVar(master=self, value=f"Video bawaan: {NAMA_VIDEO_DEFAULT}")
+                self.variables[lane] = variable
+                ttk.Label(
+                    panel,
+                    textvariable=variable,
+                    background="#202a36",
+                    foreground="#8fd3a8",
+                    anchor="w",
+                ).grid(row=row, column=1, columnspan=2, padx=6, pady=9, sticky="ew")
+                continue
 
             variable = StringVar(master=self, value=OPSIONAL_NONAKTIF)
             self.variables[lane] = variable
@@ -261,8 +275,19 @@ class PemilihSumber(tk.Tk):
             self.variables[lane].set(f"Video lokal: {os.path.basename(path)}")
 
     def mulai_aplikasi(self):
+        if not os.path.isfile(VIDEO_DEFAULT_PATH):
+            messagebox.showerror(
+                "Video bawaan tidak ditemukan",
+                f"Pastikan file berikut tersedia di folder GUI:\n{NAMA_VIDEO_DEFAULT}",
+                parent=self,
+            )
+            return
+
         sources = {}
         for lane, variable in self.variables.items():
+            if lane == "Utara":
+                sources[lane] = VIDEO_DEFAULT_PATH
+                continue
             choice = variable.get()
 
             if lane in self.video_paths and choice.startswith("Video lokal: "):
