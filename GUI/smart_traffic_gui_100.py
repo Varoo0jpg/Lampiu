@@ -1225,7 +1225,7 @@ class TrafficGUI(ctk.CTk):
             messagebox.showerror(
                 "Analisis audio gagal",
                 "Periksa instalasi TensorFlow, TensorFlow Hub, librosa, dan joblib. "
-                "YAMNet memerlukan koneksi internet pada pemuatan pertama.\\n\\n" + error
+                "YAMNet memerlukan koneksi internet pada pemuatan pertama.\n\n" + error
             )
             return
 
@@ -1245,7 +1245,7 @@ class TrafficGUI(ctk.CTk):
         self.lbl_hasil_mp3.configure(
             text=(
                 f"{lajur}: {status} ({confidence * 100:.1f}%) | "
-                f"Prediksi: {predicted}\\n{rincian}"
+                f"Prediksi: {predicted}\n{rincian}"
             ),
             text_color=warna
         )
