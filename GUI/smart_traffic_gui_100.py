@@ -798,7 +798,8 @@ class TrafficGUI(ctk.CTk):
         bingkai_deteksi = ctk.CTkFrame(panel_kiri, fg_color="#252525", border_width=1)
         bingkai_deteksi.pack(fill="x", padx=15, pady=(8, 10))
         ctk.CTkLabel(bingkai_deteksi, text="SENSITIVITAS DETEKSI", font=("Arial", 12, "bold"), text_color="#5dade2").pack(pady=(7, 2))
-        self.lbl_conf = ctk.CTkLabel(bingkai_deteksi, text=f"Confidence: {CONF:.2f}")        self.lbl_conf.pack(anchor="w", padx=10)
+        self.lbl_conf = ctk.CTkLabel(bingkai_deteksi, text=f"Confidence: {CONF:.2f}")
+        self.lbl_conf.pack(anchor="w", padx=10)
         self.slider_conf = ctk.CTkSlider(bingkai_deteksi, from_=0.05, to=0.80, number_of_steps=75, command=self.ubah_confidence)
         self.slider_conf.set(CONF)
         self.slider_conf.pack(fill="x", padx=10, pady=(0, 5))
@@ -1197,7 +1198,8 @@ class TrafficGUI(ctk.CTk):
                     except (TypeError, ValueError):
                         counts[jenis] = 0
 
-                total = sum(counts.values())                weighted_score = round(
+                total = sum(counts.values())
+                weighted_score = round(
                     sum(counts[k] * BOBOT_KENDARAAN[k] for k in BOBOT_KENDARAAN), 3
                 )
                 phase = (
