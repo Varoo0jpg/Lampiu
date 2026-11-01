@@ -26,7 +26,7 @@ from tkinter import filedialog, messagebox, ttk
 import customtkinter as ctk
 import cv2
 import numpy as np
-from PIL import Image, ImageTk
+from PIL import Image
 
 # ===============================================================
 # KONFIGURASI SISTEM
@@ -1145,13 +1145,11 @@ class TrafficGUI(ctk.CTk):
     def _perbarui_dua_lajur_setelah_tukar(self, old_lane, new_lane):
         lanes = (old_lane, new_lane)
         for lane in lanes:
+            # Pertahankan CTkImage yang terpasang; frame baru akan menimpa
+            # bitmap objek yang sama setelah capture sumber baru tersedia.
             self.label_kamera[lane].configure(
-                image=None,
                 text=self._teks_kamera(lane, "Menukar sumber lajur...")
             )
-            # Jangan hapus CTkImage: CTkLabel masih dapat menyimpan nama
-            # PhotoImage Tcl dari objek tersebut. Objek dipakai ulang untuk
-            # frame sumber baru agar tidak muncul "pyimage doesn't exist".
             self.jumlah_terakhir.pop(lane, None)
             self._lajur_gagal.discard(lane)
             self.kumpulan_panel[lane].set_jumlah({})
@@ -1164,10 +1162,25 @@ class TrafficGUI(ctk.CTk):
     def buat_box_kamera_simulasi(self, row, col, nomor, nama):
         f = ctk.CTkFrame(self, fg_color="#242424", border_width=2, border_color="#555555")
         f.grid(row=row, column=col, sticky="nsew", padx=4, pady=4)
-        lbl = ctk.CTkLabel(f, text=f"CAMERA {nomor}\n(Lajur {nama})", font=("Arial", 14, "bold"))
+        placeholder = Image.new("RGB", UKURAN_TAMPIL, (28, 28, 28))
+        image_widget = ctk.CTkImage(
+            light_image=placeholder,
+            dark_image=placeholder,
+            size=UKURAN_TAMPIL,
+        )
+        lbl = ctk.CTkLabel(
+            f,
+            text=f"CAMERA {nomor}\n(Lajur {nama})",
+            font=("Arial", 14, "bold"),
+            image=image_widget,
+            compound="center",
+        )
         lbl.pack(expand=True)
-        self.kotak_kamera[nama] = f      # [BARU]
-        self.label_kamera[nama] = lbl    # [BARU]
+        # Satu CTkImage permanen per lajur; hanya bitmap di dalamnya yang diganti.
+        # Ini mencegah nama image Tcl terhapus ketika frame diperbarui berulang.
+        self.gambar_kamera[nama] = image_widget
+        self.kotak_kamera[nama] = f
+        self.label_kamera[nama] = lbl
 
     # -----------------------------------------------------------
     # PANEL DATA PENELITIAN
@@ -1739,13 +1752,12 @@ class TrafficGUI(ctk.CTk):
                 if frame is not None:
                     rgb = cv2.cvtColor(cv2.resize(frame, UKURAN_TAMPIL), cv2.COLOR_BGR2RGB)
                     pil = Image.fromarray(rgb)
-                    # Buat PhotoImage dengan master=root Tk yang sama dan simpan
-                    # referensi kuat. Hindari cache PhotoImage internal CTkImage yang
-                    # dapat kehilangan image Tcl saat label/sumber kamera ditukar.
-                    photo = ImageTk.PhotoImage(pil, master=self)
-                    self.gambar_kamera[l] = photo
-                    self.label_kamera[l].configure(image=photo, text="")
-                    self.label_kamera[l].image = photo
+                    # Perbarui bitmap CTkImage permanen; jangan membuat image Tcl
+                    # baru setiap 120 ms. Referensi image tetap hidup sepanjang widget.
+                    image_widget = self.gambar_kamera.get(l)
+                    if image_widget is not None:
+                        image_widget.configure(light_image=pil, dark_image=pil)
+                        self.label_kamera[l].configure(text="")
                 if jumlah[l] != self.jumlah_terakhir.get(l):
                     self.jumlah_terakhir[l] = jumlah[l]
                     panel.set_jumlah(jumlah[l])
