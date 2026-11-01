@@ -1354,7 +1354,8 @@ class TrafficGUI(ctk.CTk):
         with open(path, "w", newline="", encoding="utf-8-sig") as f:
             writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
             writer.writeheader()
-            writer.writerows(rows)        messagebox.showinfo("Ekspor selesai", f"Ringkasan penelitian tersimpan:\n{path}")
+            writer.writerows(rows)
+        messagebox.showinfo("Ekspor selesai", f"Ringkasan penelitian tersimpan:\n{path}")
 
 
     # -----------------------------------------------------------
