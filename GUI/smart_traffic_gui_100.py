@@ -132,6 +132,12 @@ IMGSZ = 640                    # kecil = lebih cepat di CPU
 UKURAN_FRAME = (640, 480)        # ukuran proses deteksi
 UKURAN_TAMPIL = (330, 248)       # ukuran feed di kotak kamera GUI
 
+# State bersama untuk sinkronisasi video lokal, kontrol GUI, dan soundtrack.
+VIDEO_CONTROL = {
+    "lock": threading.RLock(), "lane": "Utara", "paused": False,
+    "seek_seconds": 0.0, "seek_serial": 0, "position": 0.0, "duration": 0.0,
+}
+
 # Urutan kelas diverifikasi terhadap checkpoint dan data.yaml proyek YOLO26n_100ep.
 KELAS_YOLO = {
     0: "Ambulance",
@@ -397,8 +403,7 @@ class DetektorKamera(threading.Thread):
             model = YOLO(MODEL_PATH)
             validasi_model_kendaraan(model)
             self._buka_sumber()
-        except Exception as e:
-            self.error = repr(e)
+        except Exception as e:            self.error = repr(e)
             self.siap = True
             return
         self.siap = True
@@ -410,6 +415,21 @@ class DetektorKamera(threading.Thread):
             for lajur, cap in list(self.caps.items()):
                 if not self.running:
                     break
+                is_local_video = isinstance(SUMBER_KAMERA.get(lajur), str) and os.path.isfile(SUMBER_KAMERA[lajur]) and not SUMBER_KAMERA[lajur].lower().startswith(("http://", "https://"))
+                if is_local_video:
+                    with VIDEO_CONTROL["lock"]:
+                        is_controlled_lane = VIDEO_CONTROL["lane"] == lajur
+                        paused = is_controlled_lane and VIDEO_CONTROL["paused"]
+                        seek_serial = VIDEO_CONTROL["seek_serial"] if is_controlled_lane else -1
+                        seek_seconds = VIDEO_CONTROL["seek_seconds"] if is_controlled_lane else 0.0
+                        previous_serial = getattr(self, "_video_seek_serial", {}).get(lajur, -1)
+                    if paused:
+                        continue
+                    if is_controlled_lane and seek_serial != previous_serial:
+                        cap.set(cv2.CAP_PROP_POS_MSEC, max(0.0, seek_seconds) * 1000.0)
+                        if not hasattr(self, "_video_seek_serial"):
+                            self._video_seek_serial = {}
+                        self._video_seek_serial[lajur] = seek_serial
                 try:
                     ok, img = cap.read()
                 except cv2.error as exc:
@@ -427,6 +447,13 @@ class DetektorKamera(threading.Thread):
                     if isinstance(SUMBER_KAMERA[lajur], str) and not SUMBER_KAMERA[lajur].lower().startswith(("http://", "https://")):
                         cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                     continue
+                if is_local_video:
+                    with VIDEO_CONTROL["lock"]:
+                        if VIDEO_CONTROL["lane"] == lajur:
+                            fps_now = cap.get(cv2.CAP_PROP_FPS) or 0.0
+                            frame_now = cap.get(cv2.CAP_PROP_POS_FRAMES) or 0.0
+                            if fps_now > 0:
+                                VIDEO_CONTROL["position"] = frame_now / fps_now
                 imgs[lajur] = cv2.resize(img, UKURAN_FRAME)
             if not self.running:
                 break
@@ -684,7 +711,25 @@ class TrafficGUI(ctk.CTk):
             (None, None),
         )
         self.audio_video_lane, self.video_file_path = selected_local_video
+        bundled_test_video = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Police Cars Fire Trucks And Ambulances Responding Compilation Part 12 - Demonracer2 (360p, h264).mp4")
+        if os.path.isfile(bundled_test_video):
+            self.video_file_path = bundled_test_video
+            self.audio_video_lane = "Utara"
+            SUMBER_KAMERA["Utara"] = bundled_test_video
+            with VIDEO_CONTROL["lock"]:
+                VIDEO_CONTROL["lane"] = "Utara"
+                VIDEO_CONTROL["paused"] = False
+                VIDEO_CONTROL["position"] = 0.0
+                VIDEO_CONTROL["seek_seconds"] = 0.0
+                VIDEO_CONTROL["seek_serial"] += 1
         if self.video_file_path:
+            cap_duration = cv2.VideoCapture(self.video_file_path)
+            fps_duration = cap_duration.get(cv2.CAP_PROP_FPS) or 0.0
+            frames_duration = cap_duration.get(cv2.CAP_PROP_FRAME_COUNT) or 0.0
+            cap_duration.release()
+            with VIDEO_CONTROL["lock"]:
+                VIDEO_CONTROL["duration"] = frames_duration / fps_duration if fps_duration > 0 else 0.0
+                VIDEO_CONTROL["lane"] = self.audio_video_lane or "Utara"
             self.lbl_file_audio.configure(
                 text=f"Audio dari video: {os.path.basename(self.video_file_path)}"
             )
@@ -797,8 +842,7 @@ class TrafficGUI(ctk.CTk):
             text_color="#5dade2",
         ).pack(pady=(8, 1))
         ctk.CTkLabel(
-            f_suara1,
-            text="Skor indikasi sirene per lajur",
+            f_suara1,            text="Skor indikasi sirene per lajur",
             font=("Arial", 9),
             text_color="#aab7c4",
         ).pack(pady=(0, 4))
@@ -864,8 +908,8 @@ class TrafficGUI(ctk.CTk):
         )
         self.lbl_hasil_mp3.pack(pady=(0, 5))
 
-        # Kolom ini sengaja dikosongkan pada baris input lajur.
-        # Panel Data Penelitian ditempatkan pada area bawah (row 2-3).
+        # Kontrol video lokal ditempatkan di sela panel data penelitian dan audio.
+        self.bangun_kontrol_video(panel_row=1, panel_col=1)
 
         # --- KOLOM 2 & 3: BLOK MONITOR KAMERA & DATA INPUT LAJUR ---
         self.kumpulan_panel = {}
@@ -901,6 +945,113 @@ class TrafficGUI(ctk.CTk):
                 command=lambda l=lajur: self.action_pemicu_manual_lajur(l)
             )
             btn_paksa.pack(pady=4)
+
+    def bangun_kontrol_video(self, panel_row, panel_col):
+        panel = ctk.CTkFrame(self, fg_color="#202a36", border_width=1)
+        panel.grid(row=panel_row, column=panel_col, sticky="nsew", padx=4, pady=4)
+        ctk.CTkLabel(panel, text="KONTROL VIDEO UJI", font=("Arial", 11, "bold"), text_color="#5dade2").pack(pady=(5, 2))
+        self.lbl_video_lane = ctk.CTkLabel(panel, text="Video MP4: Lajur Utara", font=("Arial", 9, "bold"))
+        self.lbl_video_lane.pack(pady=1)
+        baris_lane = ctk.CTkFrame(panel, fg_color="transparent")
+        baris_lane.pack(fill="x", padx=6, pady=2)
+        self.var_video_lane = ctk.StringVar(value="Utara")
+        self.menu_video_lane = ctk.CTkOptionMenu(baris_lane, values=DAFTAR_LAJUR, variable=self.var_video_lane, width=105)
+        self.menu_video_lane.pack(side="left", padx=3)
+        self.btn_pindah_video = ctk.CTkButton(baris_lane, text="Pindahkan video", width=125, command=self.pindahkan_video_ke_lajur)
+        self.btn_pindah_video.pack(side="left", padx=3)
+        baris_play = ctk.CTkFrame(panel, fg_color="transparent")
+        baris_play.pack(fill="x", padx=6, pady=2)
+        self.btn_video_pause = ctk.CTkButton(baris_play, text="Jeda", width=65, command=self.toggle_video_pause)
+        self.btn_video_pause.pack(side="left", padx=2)
+        ctk.CTkButton(baris_play, text="−10 dtk", width=70, command=lambda: self.loncat_video(-10)).pack(side="left", padx=2)
+        ctk.CTkButton(baris_play, text="+10 dtk", width=70, command=lambda: self.loncat_video(10)).pack(side="left", padx=2)
+        self.lbl_video_time = ctk.CTkLabel(panel, text="00:00 / --:--", font=("Arial", 9))
+        self.lbl_video_time.pack(pady=(1, 0))
+        self.slider_video = ctk.CTkSlider(panel, from_=0, to=1, command=self.seek_video)
+        self.slider_video.set(0)
+        self.slider_video.pack(fill="x", padx=10, pady=(0, 4))
+        self._video_slider_updating = False
+        self._video_ui_after_id = self.after(250, self.perbarui_kontrol_video)
+
+    def perbarui_kontrol_video(self):
+        self._video_ui_after_id = None
+        if self._closing:
+            return
+        with VIDEO_CONTROL["lock"]:
+            lane = VIDEO_CONTROL["lane"]
+            position = float(VIDEO_CONTROL["position"])
+            duration = float(VIDEO_CONTROL["duration"])
+            paused = bool(VIDEO_CONTROL["paused"])
+        self.lbl_video_lane.configure(text=f"Video MP4: Lajur {lane}")
+        self.btn_video_pause.configure(text="Lanjut" if paused else "Jeda")
+        if duration > 0:
+            self._video_slider_updating = True
+            self.slider_video.configure(to=max(duration, 1.0))
+            self.slider_video.set(min(position, duration))
+            self._video_slider_updating = False
+            fmt = lambda value: f"{int(value // 60):02d}:{int(value % 60):02d}"
+            self.lbl_video_time.configure(text=f"{fmt(position)} / {fmt(duration)}")
+        else:
+            self.lbl_video_time.configure(text="Video belum tersedia")
+        self._video_ui_after_id = self.after(250, self.perbarui_kontrol_video)
+
+    def toggle_video_pause(self):
+        with VIDEO_CONTROL["lock"]:
+            VIDEO_CONTROL["paused"] = not VIDEO_CONTROL["paused"]
+
+    def seek_video(self, value):
+        if self._video_slider_updating:
+            return
+        with VIDEO_CONTROL["lock"]:
+            VIDEO_CONTROL["seek_seconds"] = max(0.0, float(value))
+            VIDEO_CONTROL["seek_serial"] += 1
+            VIDEO_CONTROL["position"] = VIDEO_CONTROL["seek_seconds"]
+
+    def loncat_video(self, delta):
+        with VIDEO_CONTROL["lock"]:
+            target = max(0.0, min(VIDEO_CONTROL["duration"], VIDEO_CONTROL["position"] + delta))
+            VIDEO_CONTROL["seek_seconds"] = target
+            VIDEO_CONTROL["seek_serial"] += 1
+            VIDEO_CONTROL["position"] = target
+
+    def pindahkan_video_ke_lajur(self):
+        old_lane = self.audio_video_lane
+        new_lane = self.var_video_lane.get()
+        if not self.video_file_path or old_lane not in DAFTAR_LAJUR or new_lane not in DAFTAR_LAJUR:
+            return
+        if new_lane == old_lane:
+            return
+        # Tukar sumber, bukan menimpa: CCTV tujuan berpindah ke lajur asal video.
+        SUMBER_KAMERA[old_lane], SUMBER_KAMERA[new_lane] = SUMBER_KAMERA[new_lane], SUMBER_KAMERA[old_lane]
+        self.audio_video_lane = new_lane
+        self._restart_detektor_setelah_tukar_sumber()
+        with VIDEO_CONTROL["lock"]:
+            VIDEO_CONTROL["lane"] = new_lane
+            VIDEO_CONTROL["position"] = 0.0
+            VIDEO_CONTROL["seek_seconds"] = 0.0
+            VIDEO_CONTROL["seek_serial"] += 1
+            VIDEO_CONTROL["paused"] = False
+        self.audio_playback_stop.set()
+        try:
+            import sounddevice as sd
+            sd.stop()
+        except Exception:
+            pass
+        self.audio_playback_thread = None
+        self.lbl_file_audio.configure(text=f"Audio dari video: {os.path.basename(self.video_file_path)} | Lajur {new_lane}")
+        self.after(150, self.mulai_audio_video_lokal)
+
+    def _restart_detektor_setelah_tukar_sumber(self):
+        if self.detektor is not None:
+            self.detektor.stop()
+        self.gambar_kamera.clear()
+        self.jumlah_terakhir.clear()
+        self._lajur_gagal.clear()
+        for lane in DAFTAR_LAJUR:
+            self.label_kamera[lane].configure(image=None, text=self._teks_kamera(lane, "Memuat ulang sumber..."))
+            self.kumpulan_panel[lane].set_jumlah({})
+            self.kumpulan_panel[lane].kunci(bool(SUMBER_KAMERA[lane]))
+        self.mulai_deteksi()
 
     def buat_box_kamera_simulasi(self, row, col, nomor, nama):
         f = ctk.CTkFrame(self, fg_color="#242424", border_width=2, border_color="#555555")
@@ -1197,8 +1348,7 @@ class TrafficGUI(ctk.CTk):
         with open(path, "w", newline="", encoding="utf-8-sig") as f:
             writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
             writer.writeheader()
-            writer.writerows(rows)
-        messagebox.showinfo("Ekspor selesai", f"Ringkasan penelitian tersimpan:\n{path}")
+            writer.writerows(rows)        messagebox.showinfo("Ekspor selesai", f"Ringkasan penelitian tersimpan:\n{path}")
 
 
     # -----------------------------------------------------------
@@ -1224,52 +1374,56 @@ class TrafficGUI(ctk.CTk):
             audio, playback_rate = decode_video_audio(video_path)
             if audio.size == 0:
                 raise RuntimeError("Video tidak memiliki trek audio.")
-            # Pemutaran non-blocking; pengguna mendengar soundtrack asli video.
-            # Mulai output audio secara eksplisit. Jika Windows tidak memiliki
-            # perangkat output default yang valid, exception akan ditampilkan di GUI.
-            sd.stop()
-            sd.play(audio, samplerate=playback_rate, blocking=False)
-            self.after(0, lambda: self.lbl_hasil_mp3.configure(
-                text="Audio video sedang diputar; YAMNet menganalisis potongan 3 detik",
-                text_color="#5dade2"
-            ))
-
-            # Audio stereo 44.1 kHz dipotong menjadi jendela 3 detik,
-            # diubah ke mono 16 kHz untuk konsisten dengan data pelatihan.
+            # Soundtrack diputar per jendela agar pause/seek GUI sinkron dengan analisis YAMNet.
             import librosa
             import numpy as np
+            sd.stop()
             frames_per_window = playback_rate * 3
             total_frames = len(audio)
-            playback_started = time.monotonic()
-            for start in range(0, total_frames, frames_per_window):
-                if self.audio_playback_stop.is_set() or self._closing:
-                    break
-                target_time = start / playback_rate
-                delay = target_time - (time.monotonic() - playback_started)
-                if delay > 0 and self.audio_playback_stop.wait(delay):
-                    break
-                chunk = audio[start:start + frames_per_window]
+            duration = total_frames / float(playback_rate)
+            with VIDEO_CONTROL["lock"]:
+                VIDEO_CONTROL["duration"] = duration
+            self.after(0, lambda: self.lbl_hasil_mp3.configure(
+                text="Video siap: audio diputar dan dianalisis per 3 detik",
+                text_color="#5dade2"
+            ))
+            cursor = 0
+            seen_seek = -1
+            while cursor < total_frames and not self.audio_playback_stop.is_set() and not self._closing:
+                with VIDEO_CONTROL["lock"]:
+                    paused = VIDEO_CONTROL["paused"]
+                    seek_serial = VIDEO_CONTROL["seek_serial"]
+                    seek_seconds = VIDEO_CONTROL["seek_seconds"]
+                if seek_serial != seen_seek:
+                    cursor = min(total_frames, int(seek_seconds * playback_rate))
+                    seen_seek = seek_serial
+                    sd.stop()
+                if paused:
+                    sd.stop()
+                    self.audio_playback_stop.wait(0.08)
+                    continue
+                chunk = audio[cursor:cursor + frames_per_window]
                 if len(chunk) < playback_rate // 2:
                     break
+                sd.play(chunk, samplerate=playback_rate, blocking=True)
                 mono = chunk.mean(axis=1) if chunk.ndim == 2 else chunk
                 mono16 = librosa.resample(
-                    np.asarray(mono, dtype=np.float32),
-                    orig_sr=playback_rate, target_sr=16000
+                    np.asarray(mono, dtype=np.float32), orig_sr=playback_rate, target_sr=16000
                 )
                 result = classify_audio_waveform(mono16, sample_rate=16000)
-                elapsed = start / playback_rate
+                elapsed = cursor / playback_rate
+                cursor += len(chunk)
+                with VIDEO_CONTROL["lock"]:
+                    VIDEO_CONTROL["position"] = min(duration, cursor / playback_rate)
                 self.after(
                     0,
                     lambda r=result, t=elapsed, lane=lajur:
                         self._hasil_audio_video(lane, r, t)
                 )
-            if self.audio_playback_stop.is_set():
-                sd.stop()
-            else:
-                sd.wait()
+            sd.stop()
+            if not self.audio_playback_stop.is_set():
                 self.after(0, lambda: self.lbl_hasil_mp3.configure(
-                    text="Pemutaran video selesai; analisis audio berhenti",
-                    text_color="#aab7c4"
+                    text="Pemutaran video selesai; analisis audio berhenti", text_color="#aab7c4"
                 ))
         except Exception as exc:
             pesan = str(exc)
@@ -1484,7 +1638,7 @@ class TrafficGUI(ctk.CTk):
         self._closing = True
 
         # Batalkan callback GUI sebelum widget dihancurkan.
-        for attr in ("_id_ticker", "_research_after_id", "_camera_poll_after_id", "_audio_video_poll_after_id"):
+        for attr in ("_id_ticker", "_research_after_id", "_camera_poll_after_id", "_audio_video_poll_after_id", "_video_ui_after_id"):
             callback_id = getattr(self, attr, None)
             if callback_id is not None:
                 try:
@@ -1597,8 +1751,7 @@ class TrafficGUI(ctk.CTk):
         return max(kandidat, key=lambda l: (
             self.confidence_visual_darurat.get(l, 0.0),
             self.audio_confidence_values.get(l, 0.0),
-            self.skor_lajur_disesuaikan(l)
-        ))
+            self.skor_lajur_disesuaikan(l)        ))
 
     def pilih_lajur_berikut(self):
         """Prioritas emergency hanya aktif jika visual AND audio terkonfirmasi."""
