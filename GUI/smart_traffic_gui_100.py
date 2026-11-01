@@ -1732,7 +1732,7 @@ class TrafficGUI(ctk.CTk):
         if det.siap:
             if det.error:
                 for l in self.lajur_berkamera:
-                    self.label_kamera[l].configure(image=None, text=self._teks_kamera(l, "Gagal memuat deteksi\n(input manual)"))
+                    self.label_kamera[l].configure(text=self._teks_kamera(l, "Gagal memuat deteksi\n(input manual)"))
                     self.kumpulan_panel[l].kunci(False)
                 print("[!] Detektor gagal:", det.error)
                 return
