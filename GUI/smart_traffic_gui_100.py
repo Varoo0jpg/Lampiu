@@ -55,7 +55,7 @@ FASE_ALL_RED = 1
 TOTAL_WAKTU_SIKLUS = 120
 ALPHA_KOMPENSASI_TUNGGU = 0.01  # PCU tambahan per detik tunggu; parameter awal untuk kalibrasi
 AMBANG_VISUAL_DARURAT = 0.65
-AMBANG_SIRENE = 0.65       # Skor audio heuristik MP3; belum merupakan MFCC/template classifier
+AMBANG_SIRENE = 0.65       # Ambang tampilan awal; belum dikalibrasi untuk keputusan operasional
 
 # Kode Warna UI Hexadecimal
 HEX_RED = "#e74c3c"
@@ -68,12 +68,23 @@ HEX_DARK_BG = "#1e2530"
 # Default None agar tidak mengasumsikan sumber video yang belum diverifikasi.
 # URL YouTube (jika dipakai) di-resolve oleh yt-dlp.
 # Isi dengan indeks kamera USB atau path video lokal yang sudah Anda verifikasi.
-SUMBER_KAMERA = {
-    "Utara": "https://youtu.be/wap8PADwLxU?si=YEeihAy0Wb6aO-Rx",
-    "Timur": "https://youtu.be/5qcM8zvrj4g?si=1aLRX9RBNHMutaw6",
-    "Selatan": "https://www.youtube.com/live/AQd-p5hFtQo?si=0hXsDQo-l-_YuIjj",
-    "Barat": "https://www.youtube.com/live/MxlqkY5SVeU?si=laSrcwHsgZBzgDkT"
-}
+# Tiga URL HLS CCTV Kota Yogyakarta dibaca dari GUI/cctv_sources.json.
+# Kamera keempat menggunakan video lokal yang dipilih pengguna saat aplikasi dibuka.
+def muat_konfigurasi_sumber():
+    config_path = resource_path("cctv_sources.json")
+    defaults = {"Utara": "", "Timur": "", "Selatan": "", "Barat": ""}
+    try:
+        import json
+        with open(config_path, "r", encoding="utf-8") as file:
+            data = json.load(file)
+        for key in defaults:
+            value = data.get(key, "")
+            defaults[key] = str(value).strip() if value else ""
+    except (OSError, ValueError, TypeError):
+        pass
+    return defaults
+
+SUMBER_KAMERA = muat_konfigurasi_sumber()
 # Contoh 4 kamera USB:
 # SUMBER_KAMERA = {"Utara": 0, "Timur": 1, "Selatan": 2, "Barat": 3}
 # Contoh 4 file video:
@@ -193,7 +204,7 @@ GUNAKAN_ROI = False
 #   "BERGILIR" = urutan tetap Utara -> Timur -> Selatan -> Barat
 PILIH_LAJUR_BERIKUT = "PADAT"
 BATAS_TUNGGU_MAKS = 180          # detik; batas anti-starvation
-AMBANG_SIRENE = 0.65       # Ambang heuristik audio MP3; bukan model klasifikasi terlatih
+AMBANG_SIRENE = 0.65       # Ambang tampilan awal; belum dikalibrasi untuk keputusan operasional
 AMBANG_KAPASITAS_LAJUR = 5.0  # Setara contoh 2 Car + 2 Truck; total bobot semua kelas
 
 
@@ -657,6 +668,14 @@ class TrafficGUI(ctk.CTk):
             if selected_model:
                 MODEL_PATH = selected_model
 
+        # Pilih video lokal untuk kamera keempat; tiga CCTV berasal dari konfigurasi HLS.
+        self.video_file_path = filedialog.askopenfilename(
+            title="Pilih video lokal untuk Kamera 4",
+            filetypes=[("Video", "*.mp4 *.m4v *.mov *.mkv"), ("Semua file", "*.*")]
+        )
+        SUMBER_KAMERA["Barat"] = self.video_file_path or ""
+        if self.video_file_path:
+            self.lbl_file_audio.configure(text=os.path.basename(self.video_file_path))
         # [BARU] Jalankan deteksi kamera
         self.mulai_deteksi()
         self.protocol("WM_DELETE_WINDOW", self.tutup_aplikasi)
@@ -812,31 +831,18 @@ class TrafficGUI(ctk.CTk):
         )
         self.lbl_status_audio.pack(pady=(2, 4))
 
-        # Input audio MP3 untuk simulasi pengujian sirene.
-        self.audio_file_path = None
-        self.var_lajur_audio = ctk.StringVar(value="Utara")
+        # Audio otomatis berasal dari soundtrack video lokal kamera Barat.
+        self.video_file_path = None
+        self.audio_playback_thread = None
+        self.audio_playback_stop = threading.Event()
         self.lbl_file_audio = ctk.CTkLabel(
-            f_suara1, text="Belum ada MP3 dipilih", font=("Arial", 9),
+            f_suara1, text="Video lokal belum dipilih", font=("Arial", 9),
             text_color="#aab7c4", wraplength=280
         )
         self.lbl_file_audio.pack(padx=8, pady=(0, 3))
-        baris_audio = ctk.CTkFrame(f_suara1, fg_color="transparent")
-        baris_audio.pack(fill="x", padx=8, pady=(0, 5))
-        ctk.CTkButton(
-            baris_audio, text="Pilih MP3", width=80, height=25,
-            command=self.pilih_file_audio
-        ).pack(side="left", padx=2)
-        ctk.CTkOptionMenu(
-            baris_audio, variable=self.var_lajur_audio,
-            values=DAFTAR_LAJUR, width=100, height=25
-        ).pack(side="left", padx=2)
-        ctk.CTkButton(
-            baris_audio, text="Analisis Sirene", width=105, height=25,
-            fg_color="#8e44ad", command=self.analisis_audio_mp3
-        ).pack(side="left", padx=2)
         self.lbl_hasil_mp3 = ctk.CTkLabel(
-            f_suara1, text="Audio MP3: belum dianalisis",
-            font=("Arial", 9), text_color="#aab7c4"
+            f_suara1, text="Audio akan diputar dan dianalisis otomatis dari video kamera 4",
+            font=("Arial", 9), text_color="#aab7c4", wraplength=300
         )
         self.lbl_hasil_mp3.pack(pady=(0, 5))
 
@@ -1178,44 +1184,86 @@ class TrafficGUI(ctk.CTk):
 
 
     # -----------------------------------------------------------
-    # INPUT DAN ANALISIS AUDIO MP3 (SIMULASI SIRENE)
+    # PEMUTARAN + KLASIFIKASI AUDIO DARI VIDEO KAMERA BARAT
     # -----------------------------------------------------------
-    def pilih_file_audio(self):
-        path = filedialog.askopenfilename(
-            title="Pilih audio sirene untuk simulasi",
-            filetypes=[("Audio MP3", "*.mp3"), ("Semua audio", "*.mp3 *.wav *.ogg")]
-        )
-        if path:
-            self.audio_file_path = path
-            self.lbl_file_audio.configure(text=os.path.basename(path))
-            self.lbl_hasil_mp3.configure(
-                text="File dipilih. Tekan Analisis Sirene.",
-                text_color="#aab7c4"
-            )
-
-    def analisis_audio_mp3(self):
-        if not self.audio_file_path:
-            messagebox.showwarning("Audio belum dipilih", "Pilih file MP3 terlebih dahulu.")
+    def mulai_audio_video_lokal(self):
+        if not self.video_file_path or self.audio_playback_thread is not None:
             return
-        lajur = self.var_lajur_audio.get()
-        self.lbl_hasil_mp3.configure(text="Menganalisis audio...", text_color="#f1c40f")
-        threading.Thread(
-            target=self._analisis_audio_worker,
-            args=(self.audio_file_path, lajur),
+        self.audio_playback_stop.clear()
+        self.audio_playback_thread = threading.Thread(
+            target=self._audio_video_worker,
+            args=(self.video_file_path,),
             daemon=True
-        ).start()
+        )
+        self.audio_playback_thread.start()
 
-    def _analisis_audio_worker(self, path, lajur):
+    def _audio_video_worker(self, video_path):
         try:
-            # Klasifikasi audio pasif: hasil hanya ditampilkan, tidak mengubah fase lampu.
-            from audio_siren import classify_audio_file
-            result = classify_audio_file(path)
-            if not self._closing:
-                self.after(0, lambda: self._hasil_analisis_audio(lajur, result, None))
+            from video_audio import decode_video_audio
+            from audio_siren import classify_audio_waveform
+            import sounddevice as sd
+
+            audio, playback_rate = decode_video_audio(video_path)
+            if audio.size == 0:
+                raise RuntimeError("Video tidak memiliki trek audio.")
+            # Pemutaran non-blocking; pengguna mendengar soundtrack asli video.
+            sd.play(audio, samplerate=playback_rate, blocking=False)
+            self.after(0, lambda: self.lbl_hasil_mp3.configure(
+                text="Audio video sedang diputar; analisis YAMNet aktif",
+                text_color="#5dade2"
+            ))
+
+            # Audio stereo 44.1 kHz dipotong menjadi jendela 3 detik,
+            # diubah ke mono 16 kHz untuk konsisten dengan data pelatihan.
+            import librosa
+            import numpy as np
+            frames_per_window = playback_rate * 3
+            total_frames = len(audio)
+            for start in range(0, total_frames, frames_per_window):
+                if self.audio_playback_stop.is_set() or self._closing:
+                    break
+                chunk = audio[start:start + frames_per_window]
+                if len(chunk) < playback_rate // 2:
+                    break
+                mono = chunk.mean(axis=1) if chunk.ndim == 2 else chunk
+                mono16 = librosa.resample(
+                    np.asarray(mono, dtype=np.float32),
+                    orig_sr=playback_rate, target_sr=16000
+                )
+                result = classify_audio_waveform(mono16, sample_rate=16000)
+                elapsed = start / playback_rate
+                self.after(0, lambda r=result, t=elapsed: self._hasil_audio_video(r, t))
+                # Jeda chunk mengikuti laju real-time agar hasil tidak mendahului audio.
+                if self.audio_playback_stop.wait(3.0):
+                    break
+            if self.audio_playback_stop.is_set():
+                sd.stop()
+            else:
+                sd.wait()
+                self.after(0, lambda: self.lbl_hasil_mp3.configure(
+                    text="Pemutaran video selesai; analisis audio berhenti",
+                    text_color="#aab7c4"
+                ))
         except Exception as exc:
             pesan = str(exc)
             if not self._closing:
-                self.after(0, lambda: self._hasil_analisis_audio(lajur, None, pesan))
+                self.after(0, lambda: self.lbl_hasil_mp3.configure(
+                    text=f"Audio video gagal: {pesan[:180]}",
+                    text_color="#e74c3c"
+                ))
+
+    def _hasil_audio_video(self, result, elapsed):
+        probabilities = result["probabilities"]
+        emergency = result["emergency_score"]
+        predicted = result["predicted_class"]
+        rincian = " | ".join(
+            f"{nama}: {nilai * 100:.0f}%"
+            for nama, nilai in probabilities.items()
+        )
+        self.lbl_hasil_mp3.configure(
+            text=f"t={elapsed:.0f}s | {predicted} | Skor agregat {emergency * 100:.1f}%\n{rincian}",
+            text_color="#e67e22" if emergency >= AMBANG_SIRENE else "#aab7c4"
+        )
 
     def _hasil_analisis_audio(self, lajur, result, error):
         if error:
@@ -1324,10 +1372,7 @@ class TrafficGUI(ctk.CTk):
             panel.set_jumlah({})            # mulai dari nol
             panel.kunci(True)               # isian diatur kamera
             self.label_kamera[l].configure(text=self._teks_kamera(l, "Memuat model YOLO..."))
-        # Analisis soundtrack file video lokal per lajur; live CCTV/webcam tidak diasumsikan memiliki audio.
-        self.audio_video_detector = DetektorAudioVideo(SUMBER_KAMERA)
-        # Thread audio baru dimulai setelah detektor video selesai membuka sumber,
-        # agar offset soundtrack mendekati awal pemutaran video.
+        # Audio video lokal diputar dan dianalisis dari satu buffer audio bersama.
         self.detektor = DetektorKamera()
         self.detektor.start()
         self._camera_poll_after_id = self.after(200, self.poll_kamera)
@@ -1375,12 +1420,8 @@ class TrafficGUI(ctk.CTk):
                     self.kumpulan_panel[l].kunci(False)
                 print("[!] Detektor gagal:", det.error)
                 return
-            if (self.audio_video_detector is not None
-                    and self.audio_video_detector.paths
-                    and not self.audio_video_started):
-                self.audio_video_started = True
-                self.audio_video_detector.start()
-                self._audio_video_poll_after_id = self.after(500, self.poll_audio_video)
+            if self.video_file_path and self.audio_playback_thread is None:
+                self.mulai_audio_video_lokal()
             jumlah, frames, confidence_visual = det.ambil()            
             self.confidence_visual_darurat.update(confidence_visual)
             for l in self.lajur_berkamera:
@@ -1423,6 +1464,12 @@ class TrafficGUI(ctk.CTk):
 
         if self.detektor is not None:
             self.detektor.stop()
+        self.audio_playback_stop.set()
+        try:
+            import sounddevice as sd
+            sd.stop()
+        except Exception:
+            pass
         if self.audio_video_detector is not None:
             self.audio_video_detector.stop()
         self.destroy()
