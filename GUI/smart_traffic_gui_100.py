@@ -26,7 +26,7 @@ from tkinter import filedialog, messagebox, ttk
 import customtkinter as ctk
 import cv2
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageTk
 
 # ===============================================================
 # KONFIGURASI SISTEM
@@ -218,6 +218,20 @@ AMBANG_KAPASITAS_LAJUR = 5.0  # Setara contoh 2 Car + 2 Truck; total bobot semua
 # ===============================================================
 # [BARU] SUBSISTEM: DETEKSI KENDARAAN DARI KAMERA (THREAD)
 # ===============================================================
+def buka_capture(sumber):
+    """Buka file/webcam/HLS dengan backend yang sesuai dan timeout FFmpeg."""
+    if isinstance(sumber, int):
+        return cv2.VideoCapture(sumber, cv2.CAP_DSHOW if os.name == "nt" else cv2.CAP_ANY)
+    if isinstance(sumber, str) and sumber.lower().startswith(("http://", "https://")):
+        # Wowza/HLS memerlukan FFmpeg; opsi reconnect membantu saat segmen berganti.
+        os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = (
+            "rw_timeout;15000000|timeout;15000000|reconnect;1|"
+            "reconnect_streamed;1|reconnect_delay_max;3"
+        )
+        return cv2.VideoCapture(sumber, cv2.CAP_FFMPEG)
+    return cv2.VideoCapture(sumber)
+
+
 def resolve_sumber(sumber):
     """[BARU] Ubah link YouTube (live/video) menjadi URL stream langsung via yt-dlp.
     Sumber lain (indeks kamera, file video, None) dikembalikan apa adanya."""
@@ -380,6 +394,7 @@ class DetektorKamera(threading.Thread):
         self.confidence_visual_darurat = {l: 0.0 for l in DAFTAR_LAJUR}
         self._riwayat = {l: collections.deque(maxlen=5) for l in DAFTAR_LAJUR}
         self.source_update_queue = queue.Queue()
+        self.source_pending = set()
         # Nomor generasi mencegah hasil inferensi dari sumber lama ditampilkan
         # setelah pengguna menukar sumber pada suatu lajur.
         self.source_generation = {l: 0 for l in DAFTAR_LAJUR}
@@ -389,6 +404,7 @@ class DetektorKamera(threading.Thread):
         lanes = tuple(lajur_lajur)
         with self.lock:
             for lajur in lanes:
+                self.source_pending.add(lajur)
                 self.source_generation[lajur] += 1
                 self.frames[lajur] = None
                 self.jumlah[lajur] = {j: 0 for j in BOBOT_KENDARAAN}
@@ -411,23 +427,28 @@ class DetektorKamera(threading.Thread):
                         pass
                 sumber = SUMBER_KAMERA.get(lajur)
                 if not sumber:
+                    with self.lock:
+                        self.source_pending.discard(lajur)
                     continue
                 try:
                     sumber_nyata = resolve_sumber(sumber)
-                    cap = (cv2.VideoCapture(sumber_nyata, cv2.CAP_DSHOW)
-                           if isinstance(sumber_nyata, int) and os.name == "nt"
-                           else cv2.VideoCapture(sumber_nyata))
+                    cap = buka_capture(sumber_nyata)
                     if cap.isOpened():
                         self.caps[lajur] = cap
                         with self.lock:
+                            self.source_pending.discard(lajur)
                             self.frames[lajur] = None
                             self.jumlah[lajur] = {j: 0 for j in BOBOT_KENDARAAN}
                             self.confidence_visual_darurat[lajur] = 0.0
                             self._riwayat[lajur].clear()
                     else:
                         cap.release()
+                        with self.lock:
+                            self.source_pending.discard(lajur)
                         print(f"[!] Sumber baru lajur {lajur} tidak terbuka")
                 except Exception as exc:
+                    with self.lock:
+                        self.source_pending.discard(lajur)
                     print(f"[!] Gagal mengganti sumber lajur {lajur}: {exc}")
 
     def _buka_sumber(self):
@@ -439,10 +460,7 @@ class DetektorKamera(threading.Thread):
             except Exception as e:
                 print(f"[!] Gagal membaca link YouTube lajur {lajur}: {e}")
                 continue
-            if isinstance(sumber_nyata, int) and os.name == "nt":
-                cap = cv2.VideoCapture(sumber_nyata, cv2.CAP_DSHOW)
-            else:
-                cap = cv2.VideoCapture(sumber_nyata)
+            cap = buka_capture(sumber_nyata)
             if cap.isOpened():
                 self.caps[lajur] = cap
             else:
@@ -1709,7 +1727,9 @@ class TrafficGUI(ctk.CTk):
             self.confidence_visual_darurat.update(confidence_visual)
             for l in self.lajur_berkamera:
                 panel = self.kumpulan_panel[l]
-                if l not in det.caps:
+                with det.lock:
+                    source_pending = l in det.source_pending
+                if l not in det.caps and not source_pending:
                     if l not in self._lajur_gagal:
                         self._lajur_gagal.add(l)
                         self.label_kamera[l].configure(text=self._teks_kamera(l, "Kamera tidak terbuka\n(input manual)"))
@@ -1719,15 +1739,13 @@ class TrafficGUI(ctk.CTk):
                 if frame is not None:
                     rgb = cv2.cvtColor(cv2.resize(frame, UKURAN_TAMPIL), cv2.COLOR_BGR2RGB)
                     pil = Image.fromarray(rgb)
-                    if l not in self.gambar_kamera:
-                        self.gambar_kamera[l] = ctk.CTkImage(
-                            light_image=pil, dark_image=pil, size=UKURAN_TAMPIL
-                        )
-                    else:
-                        self.gambar_kamera[l].configure(light_image=pil, dark_image=pil)
-                    # Pasang ulang referensi gambar setiap frame. Referensi Python
-                    # tetap disimpan di self.gambar_kamera sepanjang umur GUI.
-                    self.label_kamera[l].configure(image=self.gambar_kamera[l], text="")
+                    # Buat PhotoImage dengan master=root Tk yang sama dan simpan
+                    # referensi kuat. Hindari cache PhotoImage internal CTkImage yang
+                    # dapat kehilangan image Tcl saat label/sumber kamera ditukar.
+                    photo = ImageTk.PhotoImage(pil, master=self)
+                    self.gambar_kamera[l] = photo
+                    self.label_kamera[l].configure(image=photo, text="")
+                    self.label_kamera[l].image = photo
                 if jumlah[l] != self.jumlah_terakhir.get(l):
                     self.jumlah_terakhir[l] = jumlah[l]
                     panel.set_jumlah(jumlah[l])
