@@ -380,10 +380,21 @@ class DetektorKamera(threading.Thread):
         self.confidence_visual_darurat = {l: 0.0 for l in DAFTAR_LAJUR}
         self._riwayat = {l: collections.deque(maxlen=5) for l in DAFTAR_LAJUR}
         self.source_update_queue = queue.Queue()
+        # Nomor generasi mencegah hasil inferensi dari sumber lama ditampilkan
+        # setelah pengguna menukar sumber pada suatu lajur.
+        self.source_generation = {l: 0 for l in DAFTAR_LAJUR}
 
     def minta_perbarui_sumber(self, lajur_lajur):
-        """Jadwalkan pembukaan ulang hanya pada lajur yang bertukar sumber."""
-        self.source_update_queue.put(tuple(lajur_lajur))
+        """Invalidasi frame lama lalu jadwalkan pembukaan ulang pada thread pemilik capture."""
+        lanes = tuple(lajur_lajur)
+        with self.lock:
+            for lajur in lanes:
+                self.source_generation[lajur] += 1
+                self.frames[lajur] = None
+                self.jumlah[lajur] = {j: 0 for j in BOBOT_KENDARAAN}
+                self.confidence_visual_darurat[lajur] = 0.0
+                self._riwayat[lajur].clear()
+        self.source_update_queue.put(lanes)
 
     def _proses_perbarui_sumber(self):
         while True:
@@ -412,6 +423,7 @@ class DetektorKamera(threading.Thread):
                             self.frames[lajur] = None
                             self.jumlah[lajur] = {j: 0 for j in BOBOT_KENDARAAN}
                             self.confidence_visual_darurat[lajur] = 0.0
+                            self._riwayat[lajur].clear()
                     else:
                         cap.release()
                         print(f"[!] Sumber baru lajur {lajur} tidak terbuka")
@@ -456,6 +468,8 @@ class DetektorKamera(threading.Thread):
                 time.sleep(0.1)
                 continue
             imgs = {}
+            with self.lock:
+                generation_snapshot = dict(self.source_generation)
             for lajur, cap in list(self.caps.items()):
                 if not self.running:
                     break
@@ -535,6 +549,10 @@ class DetektorKamera(threading.Thread):
                 waktu_debug_terakhir = waktu_sekarang
 
             for lajur, res in zip(daftar, hasil):
+                # Abaikan hasil yang dihitung dari frame sebelum pergantian sumber.
+                with self.lock:
+                    if generation_snapshot.get(lajur) != self.source_generation[lajur]:
+                        continue
                 img = imgs[lajur]
                 poly = np.array([(int(x * w), int(y * h)) for x, y in ROI[lajur]], np.int32)
                 hitung = {j: 0 for j in BOBOT_KENDARAAN}
@@ -1113,7 +1131,9 @@ class TrafficGUI(ctk.CTk):
                 image=None,
                 text=self._teks_kamera(lane, "Menukar sumber lajur...")
             )
-            self.gambar_kamera.pop(lane, None)
+            # Jangan hapus CTkImage: CTkLabel masih dapat menyimpan nama
+            # PhotoImage Tcl dari objek tersebut. Objek dipakai ulang untuk
+            # frame sumber baru agar tidak muncul "pyimage doesn't exist".
             self.jumlah_terakhir.pop(lane, None)
             self._lajur_gagal.discard(lane)
             self.kumpulan_panel[lane].set_jumlah({})
@@ -1700,10 +1720,14 @@ class TrafficGUI(ctk.CTk):
                     rgb = cv2.cvtColor(cv2.resize(frame, UKURAN_TAMPIL), cv2.COLOR_BGR2RGB)
                     pil = Image.fromarray(rgb)
                     if l not in self.gambar_kamera:
-                        self.gambar_kamera[l] = ctk.CTkImage(light_image=pil, dark_image=pil, size=UKURAN_TAMPIL)
-                        self.label_kamera[l].configure(image=self.gambar_kamera[l], text="")
+                        self.gambar_kamera[l] = ctk.CTkImage(
+                            light_image=pil, dark_image=pil, size=UKURAN_TAMPIL
+                        )
                     else:
                         self.gambar_kamera[l].configure(light_image=pil, dark_image=pil)
+                    # Pasang ulang referensi gambar setiap frame. Referensi Python
+                    # tetap disimpan di self.gambar_kamera sepanjang umur GUI.
+                    self.label_kamera[l].configure(image=self.gambar_kamera[l], text="")
                 if jumlah[l] != self.jumlah_terakhir.get(l):
                     self.jumlah_terakhir[l] = jumlah[l]
                     panel.set_jumlah(jumlah[l])
