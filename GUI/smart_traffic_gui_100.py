@@ -11,6 +11,7 @@ import collections
 import csv
 import importlib
 import os
+import queue
 import random
 import statistics
 import shutil
@@ -134,7 +135,7 @@ UKURAN_TAMPIL = (330, 248)       # ukuran feed di kotak kamera GUI
 
 # State bersama untuk sinkronisasi video lokal, kontrol GUI, dan soundtrack.
 VIDEO_CONTROL = {
-    "lock": threading.RLock(), "lane": "Utara", "paused": False,
+    "lock": threading.RLock(), "lane": "Utara", "paused": False, "muted": True,
     "seek_seconds": 0.0, "seek_serial": 0, "position": 0.0, "duration": 0.0,
 }
 
@@ -378,6 +379,44 @@ class DetektorKamera(threading.Thread):
         self.jumlah = {l: {j: 0 for j in BOBOT_KENDARAAN} for l in DAFTAR_LAJUR}
         self.confidence_visual_darurat = {l: 0.0 for l in DAFTAR_LAJUR}
         self._riwayat = {l: collections.deque(maxlen=5) for l in DAFTAR_LAJUR}
+        self.source_update_queue = queue.Queue()
+
+    def minta_perbarui_sumber(self, lajur_lajur):
+        """Jadwalkan pembukaan ulang hanya pada lajur yang bertukar sumber."""
+        self.source_update_queue.put(tuple(lajur_lajur))
+
+    def _proses_perbarui_sumber(self):
+        while True:
+            try:
+                lanes = self.source_update_queue.get_nowait()
+            except queue.Empty:
+                return
+            for lajur in lanes:
+                old_cap = self.caps.pop(lajur, None)
+                if old_cap is not None:
+                    try:
+                        old_cap.release()
+                    except Exception:
+                        pass
+                sumber = SUMBER_KAMERA.get(lajur)
+                if not sumber:
+                    continue
+                try:
+                    sumber_nyata = resolve_sumber(sumber)
+                    cap = (cv2.VideoCapture(sumber_nyata, cv2.CAP_DSHOW)
+                           if isinstance(sumber_nyata, int) and os.name == "nt"
+                           else cv2.VideoCapture(sumber_nyata))
+                    if cap.isOpened():
+                        self.caps[lajur] = cap
+                        with self.lock:
+                            self.frames[lajur] = None
+                            self.jumlah[lajur] = {j: 0 for j in BOBOT_KENDARAAN}
+                            self.confidence_visual_darurat[lajur] = 0.0
+                    else:
+                        cap.release()
+                        print(f"[!] Sumber baru lajur {lajur} tidak terbuka")
+                except Exception as exc:
+                    print(f"[!] Gagal mengganti sumber lajur {lajur}: {exc}")
 
     def _buka_sumber(self):
         for lajur, sumber in SUMBER_KAMERA.items():
@@ -411,7 +450,11 @@ class DetektorKamera(threading.Thread):
 
         w, h = UKURAN_FRAME
         waktu_debug_terakhir = 0.0
-        while self.running and self.caps:
+        while self.running:
+            self._proses_perbarui_sumber()
+            if not self.caps:
+                time.sleep(0.1)
+                continue
             imgs = {}
             for lajur, cap in list(self.caps.items()):
                 if not self.running:
@@ -720,6 +763,7 @@ class TrafficGUI(ctk.CTk):
             with VIDEO_CONTROL["lock"]:
                 VIDEO_CONTROL["lane"] = "Utara"
                 VIDEO_CONTROL["paused"] = False
+                VIDEO_CONTROL["muted"] = True
                 VIDEO_CONTROL["position"] = 0.0
                 VIDEO_CONTROL["seek_seconds"] = 0.0
                 VIDEO_CONTROL["seek_serial"] += 1
@@ -964,6 +1008,8 @@ class TrafficGUI(ctk.CTk):
         baris_play.pack(fill="x", padx=6, pady=2)
         self.btn_video_pause = ctk.CTkButton(baris_play, text="Jeda", width=65, command=self.toggle_video_pause)
         self.btn_video_pause.pack(side="left", padx=2)
+        self.btn_video_mute = ctk.CTkButton(baris_play, text="Nyalakan suara", width=115, command=self.toggle_video_mute)
+        self.btn_video_mute.pack(side="left", padx=2)
         ctk.CTkButton(baris_play, text="−10 dtk", width=70, command=lambda: self.loncat_video(-10)).pack(side="left", padx=2)
         ctk.CTkButton(baris_play, text="+10 dtk", width=70, command=lambda: self.loncat_video(10)).pack(side="left", padx=2)
         self.lbl_video_time = ctk.CTkLabel(panel, text="00:00 / --:--", font=("Arial", 9))
@@ -983,8 +1029,10 @@ class TrafficGUI(ctk.CTk):
             position = float(VIDEO_CONTROL["position"])
             duration = float(VIDEO_CONTROL["duration"])
             paused = bool(VIDEO_CONTROL["paused"])
+            muted = bool(VIDEO_CONTROL["muted"])
         self.lbl_video_lane.configure(text=f"Video MP4: Lajur {lane}")
         self.btn_video_pause.configure(text="Lanjut" if paused else "Jeda")
+        self.btn_video_mute.configure(text="Nyalakan suara" if muted else "Mute audio")
         if duration > 0:
             self._video_slider_updating = True
             self.slider_video.configure(to=max(duration, 1.0))
@@ -1001,6 +1049,10 @@ class TrafficGUI(ctk.CTk):
             VIDEO_CONTROL["paused"] = not VIDEO_CONTROL["paused"]
         if self.audio_playback_thread is None:
             self.mulai_audio_video_lokal()
+
+    def toggle_video_mute(self):
+        with VIDEO_CONTROL["lock"]:
+            VIDEO_CONTROL["muted"] = not VIDEO_CONTROL["muted"]
 
     def seek_video(self, value):
         if self._video_slider_updating:
@@ -1024,10 +1076,10 @@ class TrafficGUI(ctk.CTk):
             return
         if new_lane == old_lane:
             return
-        # Tukar sumber, bukan menimpa: CCTV tujuan berpindah ke lajur asal video.
+        # Tukar sumber hanya pada dua lajur terkait; thread YOLO dan feed lain tetap berjalan.
         SUMBER_KAMERA[old_lane], SUMBER_KAMERA[new_lane] = SUMBER_KAMERA[new_lane], SUMBER_KAMERA[old_lane]
         self.audio_video_lane = new_lane
-        self._restart_detektor_setelah_tukar_sumber()
+        self._perbarui_dua_lajur_setelah_tukar(old_lane, new_lane)
         with VIDEO_CONTROL["lock"]:
             VIDEO_CONTROL["lane"] = new_lane
             VIDEO_CONTROL["position"] = 0.0
@@ -1047,17 +1099,22 @@ class TrafficGUI(ctk.CTk):
         self.lbl_file_audio.configure(text=f"Audio dari video: {os.path.basename(self.video_file_path)} | Lajur {new_lane}")
         self.after(150, self.mulai_audio_video_lokal)
 
-    def _restart_detektor_setelah_tukar_sumber(self):
-        if self.detektor is not None:
-            self.detektor.stop()
-        self.gambar_kamera.clear()
-        self.jumlah_terakhir.clear()
-        self._lajur_gagal.clear()
-        for lane in DAFTAR_LAJUR:
-            self.label_kamera[lane].configure(image=None, text=self._teks_kamera(lane, "Memuat ulang sumber..."))
+    def _perbarui_dua_lajur_setelah_tukar(self, old_lane, new_lane):
+        lanes = (old_lane, new_lane)
+        for lane in lanes:
+            self.label_kamera[lane].configure(
+                image=None,
+                text=self._teks_kamera(lane, "Menukar sumber lajur...")
+            )
+            self.gambar_kamera.pop(lane, None)
+            self.jumlah_terakhir.pop(lane, None)
+            self._lajur_gagal.discard(lane)
             self.kumpulan_panel[lane].set_jumlah({})
             self.kumpulan_panel[lane].kunci(bool(SUMBER_KAMERA[lane]))
-        self.mulai_deteksi()
+        if self.detektor is not None and self.detektor.is_alive():
+            self.detektor.minta_perbarui_sumber(lanes)
+        else:
+            self.mulai_deteksi()
 
     def buat_box_kamera_simulasi(self, row, col, nomor, nama):
         f = ctk.CTkFrame(self, fg_color="#242424", border_width=2, border_color="#555555")
@@ -1412,7 +1469,10 @@ class TrafficGUI(ctk.CTk):
                 chunk = audio[cursor:cursor + frames_per_window]
                 if len(chunk) < playback_rate // 2:
                     break
-                sd.play(chunk, samplerate=playback_rate, blocking=True)
+                with VIDEO_CONTROL["lock"]:
+                    muted = bool(VIDEO_CONTROL["muted"])
+                if not muted:
+                    sd.play(chunk, samplerate=playback_rate, blocking=True)
                 mono = chunk.mean(axis=1) if chunk.ndim == 2 else chunk
                 mono16 = librosa.resample(
                     np.asarray(mono, dtype=np.float32), orig_sr=playback_rate, target_sr=16000
