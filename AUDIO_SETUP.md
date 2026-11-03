@@ -1,40 +1,45 @@
-# Audio sirene Lampiu (prototipe)
+# Catatan audio Lampiu
 
-Modul ini memakai YAMNet pralatih dari TensorFlow Hub untuk mencari kelas suara **Siren** pada sumber audio tiap simpang. YAMNet mengklasifikasikan 521 jenis peristiwa suara, termasuk sirene. Skor model yang ditampilkan di GUI bukan probabilitas yang sudah dikalibrasi.
+Dokumen ini menjelaskan **prototipe audio lama** pada `Coba/siren_audio.py`. Modul tersebut menggunakan YAMNet untuk menilai kelas AudioSet `Siren` secara langsung. Modul ini berbeda dari pipeline audio pada GUI utama dan tidak boleh dipakai sebagai dokumentasi implementasi GUI utama.
 
-## 1. Instalasi
+## Pilih dokumentasi sesuai implementasi
 
-Gunakan Python 3.10 atau 3.11 pada lingkungan yang sama dengan aplikasi Lampiu.
+| Implementasi | Pipeline | Ambang awal |
+|---|---|---:|
+| GUI utama: `GUI/smart_traffic_gui_100.py` | Soundtrack video lokal → YAMNet embedding → Logistic Regression empat kelas | Skor agregat audio darurat 0,65 |
+| Prototipe lama: `Coba/siren_audio.py` | YAMNet langsung menilai kelas AudioSet `Siren` | `SIREN_THRESHOLD = 0.25` |
+
+Jangan mencampur kedua ambang atau menyebut classifier Logistic Regression sebagai bagian dari prototipe `Coba/`.
+
+## Prototipe lama pada folder Coba
+
+Modul `Coba/siren_audio.py` mendukung sumber file lokal atau URL HTTP(S), termasuk URL YouTube yang di-resolve menggunakan `yt-dlp`. FFmpeg mengubah sumber menjadi PCM mono 16 kHz. Implementasi ini menggunakan jendela audio 1,5 detik, smoothing `SMOOTHING_ALPHA = 0.45`, dan indikasi positif jika sedikitnya dua dari tiga jendela terakhir melewati ambang.
+
+Ambang `SIREN_THRESHOLD = 0.25` adalah nilai awal prototipe, bukan ambang terkalibrasi. Skor YAMNet merupakan model score, bukan probabilitas terkalibrasi.
+
+### Dependensi prototipe
+
+Gunakan Python 3.10 atau 3.11 pada environment terpisah atau environment yang kompatibel:
 
 ```bash
-pip install -r requirements-audio.txt
+python -m pip install -r requirements-audio.txt
 ```
 
-Instal FFmpeg secara terpisah dan pastikan perintah `ffmpeg` tersedia di PATH. Pada pemakaian pertama, TensorFlow Hub perlu mengunduh model YAMNet dari internet.
+`requirements-audio.txt` dipertahankan untuk prototipe audio lama. Untuk GUI utama, gunakan `GUI/requirements.txt` dan ikuti [GUI/README.md](GUI/README.md).
 
-## 2. Sumber audio
+FFmpeg dibutuhkan oleh `Coba/siren_audio.py` dan harus tersedia pada PATH. Untuk GUI utama, `imageio-ffmpeg` disertakan sebagai dependensi dan digunakan oleh `GUI/video_audio.py` untuk mengekstrak soundtrack video lokal.
 
-Di bagian konfigurasi `Coba/Coba_kamera.py`, variabel `SUMBER_AUDIO` secara default memakai URL yang sama dengan sumber video untuk masing-masing simpang. Kamu dapat mengganti nilai setiap simpang menjadi path MP4 lokal, misalnya:
+### Status integrasi
 
-```python
-SUMBER_AUDIO = {
-    "Utara": "C:/Lampiu/video/utara.mp4",
-    "Timur": "C:/Lampiu/video/timur.mp4",
-    "Selatan": "C:/Lampiu/video/selatan.mp4",
-    "Barat": "C:/Lampiu/video/barat.mp4",
-}
-```
+`Coba/Coba_kamera.py` saat ini tidak mendefinisikan `SUMBER_AUDIO` dan tidak menginisialisasi `SirenAudioEngine`. Karena itu, jangan mengikuti instruksi konfigurasi `SUMBER_AUDIO` versi lama. Modul `Coba/siren_audio.py` adalah engine terpisah/prototipe dan belum menjadi jalur audio GUI utama.
 
-Gunakan `None` untuk menonaktifkan sumber audio pada simpang tertentu. MP4 harus memiliki trek audio. Untuk URL YouTube, modul menggunakan `yt-dlp` untuk menemukan aliran audio.
+## Pipeline audio GUI utama
 
-## 3. Tampilan dan ambang
+Untuk implementasi yang digunakan dalam penelitian Lampiu saat ini, lihat:
 
-Panel menampilkan skor sirene yang diperhalus dari waktu ke waktu. Ambang awal `SIREN_THRESHOLD = 0.25` adalah nilai awal untuk eksperimen, bukan hasil kalibrasi untuk kondisi jalan tertentu. Sistem meminta sedikitnya dua dari tiga jendela terakhir melewati ambang sebelum menandai indikasi sirene.
+- [GUI/README.md](GUI/README.md) — alur input video lokal, playback/mute, 3-second window, 16 kHz, YAMNet embeddings, Logistic Regression, dan dual-modal confirmation.
+- [GUI/audio_models/README.md](GUI/audio_models/README.md) — kelas classifier, konfigurasi pelatihan yang tercatat, dan batas verifikasi artefak.
 
-Audio belum mengubah lampu lalu lintas secara otomatis. Tetap gunakan deteksi visual sebagai konfirmasi. Uji dengan rekaman sirene, lalu lintas biasa, klakson, musik, dan suara latar lainnya untuk mengevaluasi false positive dan false negative.
+GUI utama mengambil soundtrack dari satu video lokal yang dipasangkan ke lajur. Audio dianalisis meskipun playback dalam keadaan mute. Video lokal diputar mute secara default; tombol **Nyalakan suara** mengaktifkan playback soundtrack untuk skenario uji.
 
-## 4. Batasan prototipe
-
-- Setiap simpang harus mengacu ke sumber audio yang benar. Perbedaan level mikrofon, jarak, dan kebisingan memengaruhi skor.
-- URL streaming memerlukan koneksi internet dan dapat terputus.
-- Kelas YAMNet bersifat umum. Untuk pemakaian lebih serius, kumpulkan data audio lokal yang berlabel dan kalibrasi atau latih classifier khusus sirene.
+Semua ambang audio pada kedua pipeline masih merupakan konfigurasi awal dan tidak boleh dipresentasikan sebagai hasil kalibrasi lapangan tanpa pengujian tersendiri.

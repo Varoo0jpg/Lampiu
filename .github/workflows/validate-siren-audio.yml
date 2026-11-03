@@ -1,12 +1,14 @@
-name: Validate Lampiu Siren Audio Code
+name: Validate Lampiu GUI and Audio Contracts
 
 on:
   push:
-    branches:
-      - feat/siren-audio-panel-sync
     paths:
-      - "Coba/siren_audio.py"
-      - "Coba/Coba_kamera.py"
+      - "GUI/*.py"
+      - "GUI/requirements.txt"
+      - "GUI/README.md"
+      - "GUI/audio_models/README.md"
+      - "Coba/*.py"
+      - "requirements-audio.txt"
       - ".github/workflows/validate-siren-audio.yml"
   workflow_dispatch:
 
@@ -25,12 +27,39 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Compile Python modules
+      - name: Compile current and legacy Python modules
         run: |
-          python -m py_compile Coba/siren_audio.py Coba/Coba_kamera.py
+          python -m py_compile \
+            GUI/smart_traffic_gui_100.py \
+            GUI/smart_traffic_jogja.py \
+            GUI/audio_siren.py \
+            GUI/video_audio.py \
+            GUI/smart_traffic_gui.py \
+            Coba/siren_audio.py \
+            Coba/Coba_kamera.py
 
-      - name: Check declared audio dependencies
+      - name: Check current GUI configuration contract
         run: |
-          test -s requirements-audio.txt
-          grep -q "tensorflow-hub" requirements-audio.txt
-          grep -q "yt-dlp" requirements-audio.txt
+          python - <<'PY'
+          from pathlib import Path
+
+          gui = Path("GUI/smart_traffic_gui_100.py").read_text(encoding="utf-8")
+          audio = Path("GUI/audio_siren.py").read_text(encoding="utf-8")
+          video = Path("GUI/video_audio.py").read_text(encoding="utf-8")
+          readme = Path("GUI/README.md").read_text(encoding="utf-8")
+
+          assert gui.count("AMBANG_AUDIO_DARURAT = 0.65") == 1
+          assert "AMBANG_SIRENE" not in gui
+          assert "KELAS_VISUAL_DARURAT = {\"Ambulance\", \"Fire engine\", \"Police car\"}" in gui
+          assert "if jenis in KELAS_VISUAL_DARURAT:" in gui
+          assert "TOTAL_ALOKASI_HIJAU = 120" in gui
+          assert "FASE_HIJAU_MIN = 10" in gui and "FASE_HIJAU_MAX = 40" in gui
+          assert "AMBANG_VISUAL_DARURAT = 0.65" in gui
+          assert "AMBANG_AUDIO_DARURAT" in gui
+          assert "EXPECTED_CLASSES = {\"ambulance\", \"firetruck\", \"police\", \"traffic\"}" in audio
+          assert "EMERGENCY_CLASSES = {\"ambulance\", \"firetruck\", \"police\"}" in audio
+          assert "def decode_video_audio(" in video
+          assert "3-second" in readme or "3 detik" in readme
+          assert "MP3 terpisah" in readme
+          print("GUI, audio, video, and README contracts are aligned.")
+          PY

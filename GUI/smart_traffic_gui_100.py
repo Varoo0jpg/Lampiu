@@ -1,8 +1,8 @@
 # smart_traffic_gui_100.py
 # GUI CustomTkinter (Coba.py) + deteksi kendaraan 4 kamera (YOLO)
 #
-# Instalasi:
-#   pip install customtkinter pillow opencv-python ultralytics numpy librosa yt-dlp
+# Instalasi (dari root repository):
+#   python -m pip install -r GUI/requirements.txt
 #
 # Penanda perubahan terhadap Coba.py asli:
 #   [BARU]       = bagian tambahan (deteksi kamera, tampilan feed)
@@ -33,9 +33,10 @@ from PIL import Image
 # ===============================================================
 DAFTAR_LAJUR = ["Utara", "Timur", "Selatan", "Barat"]
 
-# Bobot PCU awal untuk simulasi. Nilai harus disitasi/divalidasi terhadap
-# standar empiris yang dipakai dalam paper sebelum dipakai sebagai hasil ilmiah.
-# Prioritas darurat dipisahkan dari PCU dan ditentukan oleh konfirmasi dual-modal.
+# Bobot operasional yang dipakai oleh simulator (bukan klaim nilai PCU universal).
+# Nilai ini harus divalidasi terhadap pedoman/karakteristik lokasi sebelum
+# diperlakukan sebagai parameter rekayasa lalu lintas.
+# Prioritas kendaraan darurat dipisahkan dari skor bobot dan memakai dual-modal.
 BOBOT_KENDARAAN = {
     "Ambulance": 1.0,   # kendaraan ringan
     "Bus": 2.0,         # kendaraan berat
@@ -52,11 +53,12 @@ FASE_HIJAU_MAX = 40
 FASE_KUNING = 3
 FASE_ALL_RED = 1
 
-# Siklus 120 detik mencakup seluruh fase clearance untuk empat pendekat.
-TOTAL_WAKTU_SIKLUS = 120
-ALPHA_KOMPENSASI_TUNGGU = 0.01  # PCU tambahan per detik tunggu; parameter awal untuk kalibrasi
+# Total alokasi hijau untuk empat lajur; clearance ditambahkan pada setiap transisi.
+TOTAL_ALOKASI_HIJAU = 120
+ALPHA_KOMPENSASI_TUNGGU = 0.01  # Faktor tie-breaker lajur darurat berdasarkan waktu tunggu.
 AMBANG_VISUAL_DARURAT = 0.65
-AMBANG_SIRENE = 0.65       # Ambang tampilan awal; belum dikalibrasi untuk keputusan operasional
+AMBANG_AUDIO_DARURAT = 0.65  # Skor agregat classifier; nilai awal, belum dikalibrasi.
+KELAS_VISUAL_DARURAT = {"Ambulance", "Fire engine", "Police car"}
 
 # Kode Warna UI Hexadecimal
 HEX_RED = "#e74c3c"
@@ -206,13 +208,8 @@ ROI = {l: list(ROI_DEFAULT) for l in DAFTAR_LAJUR}
 # True  = hanya hitung kendaraan di dalam poligon ROI (garis kuning)
 GUNAKAN_ROI = False
 
-# Pemilihan lajur hijau berikutnya pada mode OTOMATIS:
-#   "PADAT"    = lajur dengan skor tertinggi didahulukan (dengan batas tunggu maksimum)
-#   "BERGILIR" = urutan tetap Utara -> Timur -> Selatan -> Barat
-PILIH_LAJUR_BERIKUT = "PADAT"
-BATAS_TUNGGU_MAKS = 180          # detik; batas anti-starvation
-AMBANG_SIRENE = 0.65       # Ambang tampilan awal; belum dikalibrasi untuk keputusan operasional
-AMBANG_KAPASITAS_LAJUR = 5.0  # Setara contoh 2 Car + 2 Truck; total bobot semua kelas
+# Urutan normal lajur tetap searah jarum jam. Alokasi durasi hijau bersifat
+# adaptif terhadap skor bobot; preemption darurat memakai konfirmasi dual-modal.
 
 
 # ===============================================================
@@ -585,7 +582,7 @@ class DetektorKamera(threading.Thread):
                     cv2.rectangle(img, (int(x1), int(y1)), (int(x2), int(y2)), warna, 2)
                     if dalam:
                         hitung[jenis] += 1
-                        if jenis in ("Ambulance", "Fire engine"):
+                        if jenis in KELAS_VISUAL_DARURAT:
                             confidence_darurat = max(confidence_darurat, confidence_box)
                 if GUNAKAN_ROI:
                     cv2.polylines(img, [poly], True, (0, 255, 255), 2)
@@ -781,15 +778,13 @@ class TrafficGUI(ctk.CTk):
         # Ambil soundtrack dari sumber video lokal mana pun yang dipilih pada
         # launcher Jogja. Audio tidak bergantung pada lajur Barat atau status YOLO.
         self.audio_video_lane = None
-        selected_local_video = next(
-            (
-                (lajur, sumber) for lajur, sumber in SUMBER_KAMERA.items()
-                if isinstance(sumber, str)
-                and os.path.isfile(sumber)
-                and not sumber.lower().startswith(("http://", "https://"))
-            ),
-            (None, None),
-        )
+        local_video_sources = [
+            (lajur, sumber) for lajur, sumber in SUMBER_KAMERA.items()
+            if isinstance(sumber, str)
+            and os.path.isfile(sumber)
+            and not sumber.lower().startswith(("http://", "https://"))
+        ]
+        selected_local_video = local_video_sources[0] if local_video_sources else (None, None)
         self.audio_video_lane, self.video_file_path = selected_local_video
         # Gunakan hanya video lokal yang benar-benar dipilih pengguna di launcher.
         # Jangan pernah menyisipkan video bawaan atau mengubah SUMBER_KAMERA Utara.
@@ -809,10 +804,14 @@ class TrafficGUI(ctk.CTk):
             with VIDEO_CONTROL["lock"]:
                 VIDEO_CONTROL["duration"] = frames_duration / fps_duration if fps_duration > 0 else 0.0
                 VIDEO_CONTROL["lane"] = self.audio_video_lane or "Utara"
-            self.lbl_file_audio.configure(
-                text=f"Audio dari video: {os.path.basename(self.video_file_path)}"
+            audio_source_note = (
+                f"Audio dari video: {os.path.basename(self.video_file_path)}"
+                f" | Lajur {self.audio_video_lane} | mute awal"
             )
-            self.lbl_hasil_mp3.configure(
+            if len(local_video_sources) > 1:
+                audio_source_note += " | soundtrack hanya dari video lokal pertama"
+            self.lbl_file_audio.configure(text=audio_source_note)
+            self.lbl_hasil_audio_video.configure(
                 text="Menyiapkan audio video dan model klasifikasi...",
                 text_color="#5dade2",
             )
@@ -910,25 +909,25 @@ class TrafficGUI(ctk.CTk):
 
     def bangun_grid_simulasi_kanan(self):
         """Membangun penempatan layout grid 4 kamera dan grafik suara."""
-        # --- KOLOM 1: AUDIO CONFIDENCE & AREA GRAFIK ---
+        # --- KOLOM 1: SKOR AUDIO DARURAT & AREA GRAFIK ---
         f_suara1 = ctk.CTkFrame(self, fg_color=HEX_DARK_BG, border_width=1)
         f_suara1.grid(row=0, column=1, sticky="nsew", padx=4, pady=4)
 
         ctk.CTkLabel(
             f_suara1,
-            text="AUDIO CONFIDENCE",
+            text="SKOR AUDIO DARURAT",
             font=("Arial", 12, "bold"),
             text_color="#5dade2",
         ).pack(pady=(8, 1))
         ctk.CTkLabel(
-            f_suara1,            text="Skor indikasi sirene per lajur",
+            f_suara1,            text="Skor agregat kelas kendaraan darurat per lajur",
             font=("Arial", 9),
             text_color="#aab7c4",
         ).pack(pady=(0, 4))
 
         # Nilai dimulai sebagai None. Persentase baru muncul setelah modul audio
         # mengirim hasil agar GUI tidak menampilkan angka confidence palsu.
-        self.audio_confidence_values = {l: None for l in DAFTAR_LAJUR}
+        self.audio_emergency_scores = {l: None for l in DAFTAR_LAJUR}
         self.audio_confidence_widgets = {}
         for lajur in DAFTAR_LAJUR:
             baris = ctk.CTkFrame(f_suara1, fg_color="transparent")
@@ -972,7 +971,7 @@ class TrafficGUI(ctk.CTk):
         )
         self.lbl_status_audio.pack(pady=(2, 4))
 
-        # Audio otomatis berasal dari soundtrack video lokal kamera Barat.
+        # Audio berasal dari soundtrack video lokal yang dipilih pada salah satu lajur.
         self.video_file_path = None
         self.audio_playback_thread = None
         self.audio_playback_stop = threading.Event()
@@ -981,11 +980,11 @@ class TrafficGUI(ctk.CTk):
             text_color="#aab7c4", wraplength=280
         )
         self.lbl_file_audio.pack(padx=8, pady=(0, 3))
-        self.lbl_hasil_mp3 = ctk.CTkLabel(
-            f_suara1, text="Audio akan diputar dan dianalisis otomatis dari video kamera 4",
+        self.lbl_hasil_audio_video = ctk.CTkLabel(
+            f_suara1, text="Soundtrack video lokal terpilih dianalisis otomatis; pemutaran suara diawali dalam kondisi mute",
             font=("Arial", 9), text_color="#aab7c4", wraplength=300
         )
-        self.lbl_hasil_mp3.pack(pady=(0, 5))
+        self.lbl_hasil_audio_video.pack(pady=(0, 5))
 
         # Kontrol video lokal ditempatkan di sela panel data penelitian dan audio.
         self.bangun_kontrol_video(panel_row=1, panel_col=1)
@@ -1472,7 +1471,7 @@ class TrafficGUI(ctk.CTk):
 
 
     # -----------------------------------------------------------
-    # PEMUTARAN + KLASIFIKASI AUDIO DARI VIDEO KAMERA BARAT
+    # PEMUTARAN + KLASIFIKASI AUDIO DARI VIDEO LOKAL TERPILIH
     # -----------------------------------------------------------
     def mulai_audio_video_lokal(self):
         if not self.video_file_path or self.audio_playback_thread is not None:
@@ -1503,7 +1502,7 @@ class TrafficGUI(ctk.CTk):
             duration = total_frames / float(playback_rate)
             with VIDEO_CONTROL["lock"]:
                 VIDEO_CONTROL["duration"] = duration
-            self.after(0, lambda: self.lbl_hasil_mp3.configure(
+            self.after(0, lambda: self.lbl_hasil_audio_video.configure(
                 text="Video siap: audio diputar dan dianalisis per 3 detik",
                 text_color="#5dade2"
             ))
@@ -1548,13 +1547,13 @@ class TrafficGUI(ctk.CTk):
                 )
             sd.stop()
             if not self.audio_playback_stop.is_set():
-                self.after(0, lambda: self.lbl_hasil_mp3.configure(
+                self.after(0, lambda: self.lbl_hasil_audio_video.configure(
                     text="Pemutaran video selesai; analisis audio berhenti", text_color="#aab7c4"
                 ))
         except Exception as exc:
             pesan = str(exc)
             if not self._closing:
-                self.after(0, lambda: self.lbl_hasil_mp3.configure(
+                self.after(0, lambda: self.lbl_hasil_audio_video.configure(
                     text=f"Audio video gagal: {pesan[:180]}",
                     text_color="#e74c3c"
                 ))
@@ -1569,20 +1568,20 @@ class TrafficGUI(ctk.CTk):
             f"{nama}: {nilai * 100:.0f}%"
             for nama, nilai in probabilities.items()
         )
-        self.lbl_hasil_mp3.configure(
+        self.lbl_hasil_audio_video.configure(
             text=f"t={elapsed:.0f}s | {predicted} | Skor agregat {emergency * 100:.1f}%\n{rincian}",
-            text_color="#e67e22" if emergency >= AMBANG_SIRENE else "#aab7c4"
+            text_color="#e67e22" if emergency >= AMBANG_AUDIO_DARURAT else "#aab7c4"
         )
         # Pemetaan mengikuti lajur tempat video lokal dipilih pada launcher.
         # Audio tetap bersifat observasi dan tidak mengubah fase simulasi.
-        self.perbarui_confidence_audio({
+        self.perbarui_skor_audio_darurat({
             nama_lajur: (emergency if nama_lajur == lajur else None)
             for nama_lajur in DAFTAR_LAJUR
         })
 
     def _hasil_analisis_audio(self, lajur, result, error):
         if error:
-            self.lbl_hasil_mp3.configure(
+            self.lbl_hasil_audio_video.configure(
                 text=f"Analisis gagal: {error}", text_color="#e74c3c"
             )
             messagebox.showerror(
@@ -1593,35 +1592,35 @@ class TrafficGUI(ctk.CTk):
             return
 
         probabilities = result["probabilities"]
-        confidence = float(result["emergency_score"])
+        emergency_score = float(result["emergency_score"])
         predicted = result["predicted_class"]
         status = (
             "INDIKASI AUDIO DARURAT"
-            if confidence >= AMBANG_SIRENE
+            if emergency_score >= AMBANG_AUDIO_DARURAT
             else "Indikasi audio darurat rendah"
         )
-        warna = "#e67e22" if confidence >= AMBANG_SIRENE else "#aab7c4"
+        warna = "#e67e22" if emergency_score >= AMBANG_AUDIO_DARURAT else "#aab7c4"
         rincian = " | ".join(
             f"{nama}: {nilai * 100:.1f}%"
             for nama, nilai in probabilities.items()
         )
-        self.lbl_hasil_mp3.configure(
+        self.lbl_hasil_audio_video.configure(
             text=(
-                f"{lajur}: {status} ({confidence * 100:.1f}%) | "
+                f"{lajur}: {status} ({emergency_score * 100:.1f}%) | "
                 f"Prediksi: {predicted}\n{rincian}"
             ),
             text_color=warna
         )
 
     # -----------------------------------------------------------
-    # PEMBARUAN AUDIO CONFIDENCE
+    # PEMBARUAN SKOR AUDIO DARURAT
     # -----------------------------------------------------------
-    def perbarui_confidence_audio(self, hasil):
+    def perbarui_skor_audio_darurat(self, hasil):
         """
-        Memperbarui panel audio confidence dari hasil modul deteksi sirene.
+        Memperbarui skor agregat audio darurat per lajur.
 
         Args:
-            hasil: dictionary dengan nama lajur dan probabilitas 0.0 sampai 1.0.
+            hasil: dictionary dengan nama lajur dan skor agregat 0.0 sampai 1.0.
                    Gunakan None jika audio untuk lajur tersebut belum tersedia.
         Panggil metode ini pada thread GUI/Tkinter.
         """
@@ -1634,30 +1633,30 @@ class TrafficGUI(ctk.CTk):
             widget = self.audio_confidence_widgets[lajur]
 
             if nilai is None:
-                self.audio_confidence_values[lajur] = None
+                self.audio_emergency_scores[lajur] = None
                 widget["progress"].set(0)
                 widget["persen"].configure(text="--%", text_color="#aab7c4")
                 continue
 
             try:
-                confidence = float(nilai)
+                score = float(nilai)
             except (TypeError, ValueError):
                 raise ValueError(
-                    f"Confidence audio untuk lajur {lajur} harus berupa angka 0.0 sampai 1.0 atau None"
+                    f"Skor audio darurat untuk lajur {lajur} harus berupa angka 0.0 sampai 1.0 atau None"
                 )
 
-            if not 0.0 <= confidence <= 1.0:
+            if not 0.0 <= score <= 1.0:
                 raise ValueError(
-                    f"Confidence audio untuk lajur {lajur} di luar rentang 0.0 sampai 1.0"
+                    f"Skor audio darurat untuk lajur {lajur} di luar rentang 0.0 sampai 1.0"
                 )
 
-            self.audio_confidence_values[lajur] = confidence
-            widget["progress"].set(confidence)
+            self.audio_emergency_scores[lajur] = score
+            widget["progress"].set(score)
             widget["persen"].configure(
-                text=f"{confidence * 100:.0f}%",
+                text=f"{score * 100:.0f}%",
                 text_color="#ffffff",
             )
-            tersedia.append((lajur, confidence))
+            tersedia.append((lajur, score))
 
         if not tersedia:
             self.lbl_status_audio.configure(
@@ -1701,7 +1700,7 @@ class TrafficGUI(ctk.CTk):
         aktif, gagal = [], []
         for lajur, nilai in hasil.items():
             widget = self.audio_confidence_widgets[lajur]
-            self.audio_confidence_values[lajur] = nilai
+            self.audio_emergency_scores[lajur] = nilai
             if nilai is None:
                 widget["progress"].set(0)
                 widget["persen"].configure(text="--%", text_color="#aab7c4")
@@ -1792,17 +1791,6 @@ class TrafficGUI(ctk.CTk):
     # -----------------------------------------------------------
     # ENGINE CORE SIMULATION LOGIC
     # -----------------------------------------------------------
-    def tentukan_lajur_paling_padat(self, lajur_kecuali):
-        """Mencari lajur dengan antrean paling padat untuk giliran berikutnya.
-        [PERBAIKAN] Jika skor sama, pilih yang paling lama menunggu (versi asli selalu
-        memilih kandidat pertama sehingga Selatan/Barat bisa tidak pernah dapat giliran)."""
-        kandidat = [l for l in DAFTAR_LAJUR if l != lajur_kecuali]
-        now = time.time()
-        return max(kandidat, key=lambda l: (self.kumpulan_panel[l].ambil_skor_bobot(),
-                                            now - self.waktu_hijau_terakhir[l]))
-
-
-       
     def skor_lajur_disesuaikan(self, lajur, now=None):
         """PCU + kompensasi waktu tunggu kumulatif (dalam detik)."""
         if now is None:
@@ -1813,39 +1801,65 @@ class TrafficGUI(ctk.CTk):
 
     def hitung_alokasi_hijau_siklus(self):
         """
-        Membagi 120 detik waktu hijau secara proporsional terhadap bobot aktual
-        empat lajur. Satu snapshot dipakai untuk satu putaran penuh agar jumlah
-        durasi keempat lajur tetap tepat 120 detik.
+        Alokasikan 120 detik hijau secara proporsional terhadap skor bobot empat
+        lajur, dengan batas 10-40 detik per lajur. Snapshot bobot dipertahankan
+        untuk satu putaran. Kuning dan all-red merupakan clearance tambahan.
         """
         bobot = {
             lajur: max(0.0, float(self.kumpulan_panel[lajur].ambil_skor_bobot()))
             for lajur in DAFTAR_LAJUR
         }
-        total_bobot = sum(bobot.values())
+        durasi = {lajur: float(FASE_HIJAU_MIN) for lajur in DAFTAR_LAJUR}
+        sisa = float(TOTAL_ALOKASI_HIJAU - FASE_HIJAU_MIN * len(DAFTAR_LAJUR))
+        aktif = set(DAFTAR_LAJUR)
 
-        if total_bobot <= 0:
-            # Tidak ada kendaraan terdeteksi: bagi rata agar semua lajur
-            # tetap memperoleh giliran dan simulasi tidak macet.
-            durasi = {lajur: TOTAL_WAKTU_SIKLUS / len(DAFTAR_LAJUR)
-                      for lajur in DAFTAR_LAJUR}
-        else:
-            durasi = {
-                lajur: (bobot[lajur] / total_bobot) * TOTAL_WAKTU_SIKLUS
-                for lajur in DAFTAR_LAJUR
-            }
+        # Water-filling berbobot: lajur yang mencapai batas maksimum dikeluarkan
+        # dari distribusi, lalu sisa waktu dibagi kembali ke lajur aktif.
+        while aktif and sisa > 1e-9:
+            total_bobot_aktif = sum(bobot[lajur] for lajur in aktif)
+            if total_bobot_aktif > 0:
+                tambahan = {
+                    lajur: sisa * bobot[lajur] / total_bobot_aktif
+                    for lajur in aktif
+                }
+            else:
+                tambahan = {lajur: sisa / len(aktif) for lajur in aktif}
 
-        # Konversi ke detik bulat dengan metode largest remainder sehingga
-        # jumlah akhirnya tetap tepat 120 detik.
+            kapasitas = FASE_HIJAU_MAX - FASE_HIJAU_MIN
+            mencapai_batas = [
+                lajur for lajur in aktif
+                if tambahan[lajur] > kapasitas + 1e-9
+            ]
+            if not mencapai_batas:
+                for lajur in aktif:
+                    durasi[lajur] += tambahan[lajur]
+                sisa = 0.0
+            else:
+                for lajur in mencapai_batas:
+                    durasi[lajur] = float(FASE_HIJAU_MAX)
+                    sisa -= kapasitas
+                    aktif.remove(lajur)
+
+        # Pembulatan largest-remainder mempertahankan total tepat 120 detik
+        # tanpa melanggar batas minimum/maksimum setiap lajur.
         hasil = {lajur: int(np.floor(durasi[lajur])) for lajur in DAFTAR_LAJUR}
-        sisa = int(TOTAL_WAKTU_SIKLUS - sum(hasil.values()))
-        urutan_sisa = sorted(
+        sisa_detik = int(TOTAL_ALOKASI_HIJAU - sum(hasil.values()))
+        urutan = sorted(
             DAFTAR_LAJUR,
             key=lambda lajur: durasi[lajur] - hasil[lajur],
             reverse=True,
         )
-        for indeks in range(sisa):
-            hasil[urutan_sisa[indeks % len(urutan_sisa)]] += 1
+        for lajur in urutan:
+            if sisa_detik <= 0:
+                break
+            if hasil[lajur] < FASE_HIJAU_MAX:
+                hasil[lajur] += 1
+                sisa_detik -= 1
 
+        if sisa_detik != 0 or sum(hasil.values()) != TOTAL_ALOKASI_HIJAU:
+            raise RuntimeError("Alokasi hijau tidak memenuhi total/batas durasi.")
+        if any(not FASE_HIJAU_MIN <= nilai <= FASE_HIJAU_MAX for nilai in hasil.values()):
+            raise RuntimeError("Durasi hijau berada di luar batas konfigurasi.")
         return hasil
 
     def hitung_durasi_fase_hijau(self, lajur_target):
@@ -1859,8 +1873,8 @@ class TrafficGUI(ctk.CTk):
     def emergency_dual_confirmed(self, lajur):
         """Konfirmasi AND: confidence YOLO darurat dan skor audio harus sama-sama lolos."""
         visual = self.confidence_visual_darurat.get(lajur, 0.0) > AMBANG_VISUAL_DARURAT
-        audio_value = self.audio_confidence_values.get(lajur)
-        audio = audio_value is not None and audio_value > AMBANG_SIRENE
+        audio_value = self.audio_emergency_scores.get(lajur)
+        audio = audio_value is not None and audio_value > AMBANG_AUDIO_DARURAT
         return visual and audio
 
     def lajur_darurat_terkonfirmasi(self):
@@ -1869,7 +1883,7 @@ class TrafficGUI(ctk.CTk):
             return None
         return max(kandidat, key=lambda l: (
             self.confidence_visual_darurat.get(l, 0.0),
-            self.audio_confidence_values.get(l, 0.0),
+            self.audio_emergency_scores.get(l, 0.0),
             self.skor_lajur_disesuaikan(l)        ))
 
     def pilih_lajur_berikut(self):

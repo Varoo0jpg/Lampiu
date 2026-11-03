@@ -1,3 +1,6 @@
+# LEGACY GUI — bukan entry point implementasi utama saat ini.
+# Implementasi utama berada pada smart_traffic_gui_100.py.
+# Versi ini dipertahankan untuk kompatibilitas/rujukan historis.
 # Coba_kamera_2.py
 # GUI CustomTkinter (Coba.py) + deteksi kendaraan 4 kamera (YOLO)
 #
