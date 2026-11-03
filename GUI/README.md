@@ -20,7 +20,7 @@ python -m pip install -r GUI/requirements.txt
 python GUI/smart_traffic_jogja.py
 ```
 
-Launcher menyediakan pemilihan sumber untuk masing-masing lajur: CCTV Jogja yang tersedia di `GUI/cameras.json`, webcam lokal, file video lokal, sumber bawaan, atau Nonaktif. Untuk skenario audio darurat yang saat ini didukung, pilih **satu video lokal yang memiliki trek audio** pada lajur yang disimulasikan.
+Launcher menyediakan pemilihan sumber untuk masing-masing lajur: CCTV Jogja yang tersedia di `GUI/cameras.json`, webcam lokal, file video lokal (`.mp4`, `.avi`, `.mov`, `.mkv`, `.m4v`), sumber bawaan, atau Nonaktif. Untuk skenario audio darurat, pilih video lokal yang memiliki trek audio pada lajur yang akan diuji. Jika lebih dari satu video lokal dipilih, hanya video lokal pertama menurut urutan lajur Utara → Timur → Selatan → Barat yang menjadi sumber soundtrack audio.
 
 Untuk membuka GUI tanpa pemilih sumber CCTV, jalankan:
 
@@ -97,14 +97,14 @@ Alur audio:
 Catatan pengoperasian:
 - Video lokal diputar dalam keadaan **mute secara default**. Analisis audio tetap berjalan. Tekan tombol **Nyalakan suara** jika soundtrack perlu terdengar pada skenario uji.
 - Kontrol jeda, seek, mute, dan pemindahan video ke lajur tersedia di panel kontrol video.
-- Untuk mencegah pemetaan audio yang ambigu, gunakan satu video lokal sebagai skenario audio darurat. Bila beberapa video lokal dipasang, GUI saat ini mengambil video lokal pertama yang ditemukan sebagai sumber soundtrack; video lokal lainnya tidak menjadi sumber audio terpisah.
+- Audio dipetakan ke lajur tempat video lokal pertama dipilih. Bila beberapa video lokal dipasang, video lokal berikutnya tetap dapat menjadi input visual, tetapi soundtrack-nya tidak dianalisis sebagai sumber audio tambahan. Untuk eksperimen audio yang tidak ambigu, gunakan satu video lokal saja.
 - Skor agregat classifier bukan probabilitas yang telah dikalibrasi untuk penggunaan operasional.
 
 Konfirmasi dual-modal pada lajur yang sama mensyaratkan:
 - Confidence deteksi visual kelas Ambulance, Fire engine, atau Police car **lebih besar dari 0,65**; dan
 - Skor agregat audio darurat **lebih besar dari 0,65**.
 
-Kedua syarat menggunakan operator `>` (bukan `>=`). Nilai 0,65 adalah ambang awal konfigurasi dan belum dinyatakan sebagai hasil kalibrasi lapangan.
+Kedua syarat pada fungsi konfirmasi dan preemption menggunakan operator `>` (bukan `>=`). Indikator warna pada panel audio dapat berubah pada `>= 0,65`, tetapi indikator tampilan tersebut bukan pemicu preemption. Nilai 0,65 adalah ambang awal konfigurasi dan belum dinyatakan sebagai hasil kalibrasi lapangan.
 
 ### Artefak classifier audio
 
@@ -126,3 +126,10 @@ Folder `Coba/` berisi eksperimen lama, termasuk pipeline YAMNet yang menilai kel
 - Jangan menghubungkan prototipe ini ke pengendali lampu lalu lintas jalan umum.
 - CCTV dan file video merupakan input pengamatan; sistem tidak mengontrol kamera atau infrastruktur CCTV.
 - Akurasi, latency, threshold, bobot kendaraan, dan keselamatan transisi perlu diuji pada lingkungan serta skenario yang ditentukan sebelum menarik kesimpulan penelitian.
+
+
+## Catatan sinkronisasi perilaku audio
+
+Jika konfirmasi dual-modal terpenuhi pada lajur selain lajur aktif, engine simulasi meminta lajur tersebut mendapat giliran hijau berikutnya. Perpindahan tetap melalui kuning dan all-red; preemption tidak melewati fase clearance.
+
+Pada jalur eksekusi GUI utama, hasil klasifikasi video lokal memperbarui `audio_emergency_scores` untuk lajur terkait. Engine simulasi membaca nilai tersebut bersama confidence visual melalui `emergency_dual_confirmed()`. Dengan demikian, skor audio dari video lokal **ikut menjadi syarat preemption**; skor audio yang tidak tersedia tidak dapat memenuhi konfirmasi dual-modal.
