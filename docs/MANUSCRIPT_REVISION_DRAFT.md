@@ -83,16 +83,15 @@ Traffic flow at signalized intersections is commonly described through volume or
 
 The Passenger Car Unit (PCU) concept expresses different vehicle classes as equivalent passenger-car units. PCU values depend on vehicle characteristics, road geometry, and traffic conditions; therefore, values reported by different studies or manuals should be treated as context-dependent references [7, 16, 22, 28]. The simplified categories retained from the original manuscript are shown in Table 2.1.
 
-**Table 2.1. Reference PCU categories for heterogeneous traffic**
+**Table 2.1. PCU values for signalized-intersection vehicle categories**
 
-| Vehicle classification | Reference value | Reference basis |
-|---|---:|---|
-| Motorcycle (MC) | 0.25 / 0.33 | Simplified values reported in the cited references [7, 28] |
-| Light Vehicle / Passenger Car (LV) | 1.00 | Passenger-car equivalent [7, 28] |
-| Medium Heavy Vehicle / Bus (MHV) | 2.00 | Simplified reference category [28] |
-| Heavy Vehicle / Large Truck (HV) | 2.00 | Simplified reference category [28] |
+| Vehicle category (PKJI 2023) | Protected approach | Opposed approach | Reference |
+|---|---:|---:|---|
+| Motorcycle (SM) | 0.15 | 0.40 | PKJI 2023, Table 5-2 [28] |
+| Passenger car (MP) | 1.00 | 1.00 | PKJI 2023, Table 5-2 [28] |
+| Medium vehicle (KS) | 1.30 | 1.30 | PKJI 2023, Table 5-2 [28] |
 
-The table provides a theoretical reference, not a universal PCU standard for every subtype or road condition. ARGUS uses a separate set of operational weights for its eight detected classes; those implementation values are listed in Table 3.1.
+For comparison, a study of motorcycle-dominated pretimed intersections in Banda Aceh estimated PCU values of 0.24 for motorcycles and 1.00 for passenger cars [7]. The difference reflects the dependence of PCU values on local traffic and approach conditions. These reference categories are not a direct one-to-one mapping to all eight ARGUS detector classes. ARGUS therefore retains a separate set of operational weights, listed in Table 3.1, for its software simulation.
 
 The weighted traffic score for approach \(i\) is:
 
@@ -194,7 +193,7 @@ The GUI displays the four approach video panels, vehicle detections and class co
 
 #### 3.3.1.1 YOLO26n-Based Vehicle Detection
 
-Vehicle detection is implemented with the Ultralytics YOLO interface and OpenCV using the trained YOLO26n checkpoint. The model is configured for eight classes: ambulance, bus, car, fire engine, military vehicle, motorcycle, police car, and truck. The initial inference settings are confidence threshold 0.15, NMS IoU threshold 0.60, and image size 640. Frames are resized to 640 × 480 before inference. The GUI's initial configuration has ROI filtering disabled; when enabled, the ROI must be configured for the relevant camera view.
+Vehicle detection is implemented with the Ultralytics YOLO interface and OpenCV using the trained YOLO26n checkpoint. The model is configured for eight classes: ambulance, bus, car, fire engine, military vehicle, motorcycle, police car, and truck. The initial inference settings are confidence threshold 0.15, NMS IoU threshold 0.60, and image size 640; inference is configured for the CPU. Frames are resized to 640 × 480 before inference. The GUI's initial configuration has ROI filtering disabled; when enabled, the ROI must be configured for the relevant camera view.
 
 Detections inside the selected counting area are counted by class. The maximum confidence among detected emergency classes (ambulance, fire engine, and police car) is retained as the visual emergency score for that approach. Vehicle counts are smoothed using a five-frame median filter before being passed to the traffic-load module.
 
@@ -237,7 +236,7 @@ The allocation begins with the minimum green time for each approach. The remaini
 
 #### 3.3.1.4 Graphical User Interface and Research Data Logging
 
-The GUI is developed using CustomTkinter and displays video feeds, vehicle counts, weighted traffic scores, audio scores, signal states, and countdown timers. It provides controls for video-source selection and simulation operation. During research recording, the system stores timestamped snapshots for each approach, including vehicle-class counts, total count, weighted score, signal phase, active approach, and data source. The records can be exported in CSV format and represent sampled system states rather than unique-vehicle tracking.
+The GUI is developed using CustomTkinter and displays video feeds, vehicle counts, weighted traffic scores, audio scores, signal states, and countdown timers. It provides controls for video-source selection and simulation operation. During research recording, the system stores snapshots every second for each approach, including vehicle-class counts, total count, weighted score, signal phase, active approach, and data source. The records can be exported in CSV format and represent sampled system states rather than unique-vehicle tracking.
 
 ### 3.3.2 Module Integration
 
