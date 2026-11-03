@@ -809,7 +809,7 @@ class TrafficGUI(ctk.CTk):
             self.lbl_file_audio.configure(
                 text=f"Audio dari video: {os.path.basename(self.video_file_path)}"
             )
-            self.lbl_hasil_mp3.configure(
+            self.lbl_hasil_audio_video.configure(
                 text="Menyiapkan audio video dan model klasifikasi...",
                 text_color="#5dade2",
             )
@@ -969,7 +969,7 @@ class TrafficGUI(ctk.CTk):
         )
         self.lbl_status_audio.pack(pady=(2, 4))
 
-        # Audio otomatis berasal dari soundtrack video lokal kamera Barat.
+        # Audio berasal dari soundtrack video lokal yang dipilih pada salah satu lajur.
         self.video_file_path = None
         self.audio_playback_thread = None
         self.audio_playback_stop = threading.Event()
@@ -978,11 +978,11 @@ class TrafficGUI(ctk.CTk):
             text_color="#aab7c4", wraplength=280
         )
         self.lbl_file_audio.pack(padx=8, pady=(0, 3))
-        self.lbl_hasil_mp3 = ctk.CTkLabel(
-            f_suara1, text="Audio akan diputar dan dianalisis otomatis dari video kamera 4",
+        self.lbl_hasil_audio_video = ctk.CTkLabel(
+            f_suara1, text="Soundtrack video lokal terpilih dianalisis otomatis; pemutaran suara diawali dalam kondisi mute",
             font=("Arial", 9), text_color="#aab7c4", wraplength=300
         )
-        self.lbl_hasil_mp3.pack(pady=(0, 5))
+        self.lbl_hasil_audio_video.pack(pady=(0, 5))
 
         # Kontrol video lokal ditempatkan di sela panel data penelitian dan audio.
         self.bangun_kontrol_video(panel_row=1, panel_col=1)
@@ -1469,7 +1469,7 @@ class TrafficGUI(ctk.CTk):
 
 
     # -----------------------------------------------------------
-    # PEMUTARAN + KLASIFIKASI AUDIO DARI VIDEO KAMERA BARAT
+    # PEMUTARAN + KLASIFIKASI AUDIO DARI VIDEO LOKAL TERPILIH
     # -----------------------------------------------------------
     def mulai_audio_video_lokal(self):
         if not self.video_file_path or self.audio_playback_thread is not None:
@@ -1500,7 +1500,7 @@ class TrafficGUI(ctk.CTk):
             duration = total_frames / float(playback_rate)
             with VIDEO_CONTROL["lock"]:
                 VIDEO_CONTROL["duration"] = duration
-            self.after(0, lambda: self.lbl_hasil_mp3.configure(
+            self.after(0, lambda: self.lbl_hasil_audio_video.configure(
                 text="Video siap: audio diputar dan dianalisis per 3 detik",
                 text_color="#5dade2"
             ))
@@ -1545,13 +1545,13 @@ class TrafficGUI(ctk.CTk):
                 )
             sd.stop()
             if not self.audio_playback_stop.is_set():
-                self.after(0, lambda: self.lbl_hasil_mp3.configure(
+                self.after(0, lambda: self.lbl_hasil_audio_video.configure(
                     text="Pemutaran video selesai; analisis audio berhenti", text_color="#aab7c4"
                 ))
         except Exception as exc:
             pesan = str(exc)
             if not self._closing:
-                self.after(0, lambda: self.lbl_hasil_mp3.configure(
+                self.after(0, lambda: self.lbl_hasil_audio_video.configure(
                     text=f"Audio video gagal: {pesan[:180]}",
                     text_color="#e74c3c"
                 ))
@@ -1566,7 +1566,7 @@ class TrafficGUI(ctk.CTk):
             f"{nama}: {nilai * 100:.0f}%"
             for nama, nilai in probabilities.items()
         )
-        self.lbl_hasil_mp3.configure(
+        self.lbl_hasil_audio_video.configure(
             text=f"t={elapsed:.0f}s | {predicted} | Skor agregat {emergency * 100:.1f}%\n{rincian}",
             text_color="#e67e22" if emergency >= AMBANG_AUDIO_DARURAT else "#aab7c4"
         )
@@ -1579,7 +1579,7 @@ class TrafficGUI(ctk.CTk):
 
     def _hasil_analisis_audio(self, lajur, result, error):
         if error:
-            self.lbl_hasil_mp3.configure(
+            self.lbl_hasil_audio_video.configure(
                 text=f"Analisis gagal: {error}", text_color="#e74c3c"
             )
             messagebox.showerror(
@@ -1602,7 +1602,7 @@ class TrafficGUI(ctk.CTk):
             f"{nama}: {nilai * 100:.1f}%"
             for nama, nilai in probabilities.items()
         )
-        self.lbl_hasil_mp3.configure(
+        self.lbl_hasil_audio_video.configure(
             text=(
                 f"{lajur}: {status} ({confidence * 100:.1f}%) | "
                 f"Prediksi: {predicted}\n{rincian}"
