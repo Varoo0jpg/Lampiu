@@ -281,20 +281,64 @@ If robustness is evaluated, test lighting variation, camera angle, partial occlu
 
 ### 3.5.1 Vehicle-Detection Metrics
 
-Evaluate YOLO26n using Precision, Recall, F1-score, and mean Average Precision (mAP). Determine true positives, false positives, and false negatives against labelled ground-truth annotations. Report per-class results and state the IoU convention; where available, include mAP50 and mAP50–95.
+Evaluate YOLO26n using Precision, Recall, F1-score, and mean Average Precision (mAP). Determine true positives, false positives, and false negatives against labelled ground-truth annotations. The metrics are calculated as follows:
+
+$$
+\mathrm{Precision}=\frac{TP}{TP+FP}
+$$
+
+$$
+\mathrm{Recall}=\frac{TP}{TP+FN}
+$$
+
+$$
+F1=2\cdot\frac{\mathrm{Precision}\cdot\mathrm{Recall}}
+{\mathrm{Precision}+\mathrm{Recall}}
+$$
+
+$$
+mAP=\frac{1}{C}\sum_{c=1}^{C}AP_c
+$$
+
+where TP is true positive, FP is false positive, FN is false negative, AP is average precision for a class, and C is the number of evaluated classes. Report per-class results and state the IoU convention; where available, include mAP50 and mAP50–95. The IoU thresholds used to calculate each mAP variant must be stated.
 
 ### 3.5.2 Traffic-Load and Green-Time Allocation Metrics
 
-Compare ARGUS weighted scores with manually calculated scores from known vehicle counts and Table 3.1. For signal allocation, report each approach's green duration, the total green allocation, and whether the minimum and maximum limits are satisfied. Queue length, average delay, throughput, and waiting-time improvement require a defined traffic-flow model or physical measurements and a baseline; they cannot be concluded from detection counts alone.
+Compare ARGUS weighted scores with manually calculated scores from known vehicle counts and Table 3.1. For signal allocation, report each approach's green duration and verify the total allocation and per-approach limits:
+
+$$
+\sum_{i=1}^{4}G_i=120
+$$
+
+$$
+10\leq G_i\leq40
+$$
+
+where $$G_i$$ is the green duration, in seconds, assigned to approach $$i$$. Queue length, average delay, throughput, and waiting-time improvement require a defined traffic-flow model or physical measurements and a baseline; they cannot be concluded from detection counts alone.
 
 ### 3.5.3 Emergency-Verification Metrics
 
-Evaluate the dual-modal decision using a confusion matrix, Precision, Recall, F1-score, false-positive rate, and false-negative rate. Report the visual and audio scores separately and identify whether both thresholds were exceeded on the same approach. Define response time consistently, for example from the start of the relevant input segment to the verification decision.
+Evaluate the dual-modal decision using a confusion matrix, Precision, Recall, F1-score, false-positive rate, and false-negative rate. Calculate Precision, Recall, and F1-score using the equations in Section 3.5.1. The additional error rates are:
+
+$$
+FPR=\frac{FP}{FP+TN}
+$$
+
+$$
+FNR=\frac{FN}{FN+TP}
+$$
+
+where TN is true negative. Report the visual and audio scores separately and identify whether both thresholds were exceeded on the same approach. Define response time consistently, for example from the start of the relevant input segment to the verification decision.
 
 ### 3.5.4 Signal-Transition Compliance
 
-Measure the yellow and all-red durations and compare them with the configured values of 3 seconds and 1 second. Record the phase sequence during normal operation and emergency-priority requests. Any claim about recovery time, restored traffic equilibrium, or reduced delay requires a separate recovery definition and supporting measurements.
+Measure the yellow and all-red durations and compare them with the configured values of 3 seconds and 1 second. The absolute duration deviation can be calculated as:
 
+$$
+\Delta t=\left|t_{\mathrm{actual}}-t_{\mathrm{configured}}\right|
+$$
+
+A zero deviation indicates that the measured interval matches its configured duration. Record the phase sequence during normal operation and emergency-priority requests. Any claim about recovery time, restored traffic equilibrium, or reduced delay requires a separate recovery definition and supporting measurements.
 ---
 
 # Note for Author — Checks Before Submission
