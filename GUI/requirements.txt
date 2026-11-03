@@ -2,11 +2,11 @@ customtkinter>=5.2.2
 Pillow>=10.0.0
 opencv-python>=4.8.0
 ultralytics>=8.3.0
-numpy>=1.24.0
-yt-dlp>=2024.8.6
+numpy>=1.24.0,<2
+yt-dlp>=2025.3.31
 librosa>=0.10.2
 joblib>=1.3.0
-tensorflow>=2.15.0
-tensorflow-hub>=0.16.1
+tensorflow==2.15.1
+tensorflow-hub==0.16.1
 sounddevice>=0.4.6
 imageio-ffmpeg>=0.4.9
