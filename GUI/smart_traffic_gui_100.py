@@ -1,8 +1,8 @@
 # smart_traffic_gui_100.py
 # GUI CustomTkinter (Coba.py) + deteksi kendaraan 4 kamera (YOLO)
 #
-# Instalasi:
-#   pip install customtkinter pillow opencv-python ultralytics numpy librosa yt-dlp
+# Instalasi (dari root repository):
+#   python -m pip install -r GUI/requirements.txt
 #
 # Penanda perubahan terhadap Coba.py asli:
 #   [BARU]       = bagian tambahan (deteksi kamera, tampilan feed)
