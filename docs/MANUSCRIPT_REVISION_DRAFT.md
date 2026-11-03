@@ -4,9 +4,9 @@
 >
 > This revision preserves the original manuscript's chapter order, section structure, research framing, and level of explanation wherever these remain consistent with the current ARGUS implementation. Changes are limited to correcting mismatches between the manuscript and the implemented system, aligning the number of research questions and objectives, and distinguishing literature-based PCU values from ARGUS configuration weights.
 >
-> The 13-page limit applies to the formatted manuscript body. The cover, table of contents, and bibliography are excluded according to the competition rules. This Markdown file does not have fixed pagination; verify the final count in the official I2ASPO template. Chapter 4/results is intentionally not included or revised.
+> The 13-page limit applies to the combined formatted manuscript from Chapter 1 through Chapter 5. The cover, table of contents, and bibliography are excluded according to the competition rules. This Markdown file does not have fixed pagination; verify the final count in the official I2ASPO template. Chapters 4–5 are not included in this working draft and must fit within the same 13-page body limit.
 >
-> **Indicative page allocation:** Abstract 0.5 page; Chapter 1 2.5 pages; Chapter 2 3.5 pages; Chapter 3 6.5 pages. This is a planning target, not a verified page count.
+> **Chapter 2 page target: maximum 2 pages.** Page allocation for the remaining chapters must be planned within the overall 13-page limit; no separate allocation should be treated as additional page allowance.
 
 ---
 
@@ -79,9 +79,7 @@ The selected detection metric, acceptance criterion, test dataset, and evaluatio
 
 ### 2.1.1 Traffic Flow Dynamics and Heterogeneous Characteristics
 
-Traffic flow at signalized intersections is commonly described through volume or flow, speed, and density [5]. In D.I. Yogyakarta, the composition of traffic is heterogeneous and includes a substantial proportion of motorcycles [6]. Since vehicle classes occupy different amounts of road space, a raw vehicle count does not fully represent traffic demand [1].
-
-The Passenger Car Unit (PCU) concept expresses different vehicle classes as equivalent passenger-car units. PCU values depend on vehicle characteristics, road geometry, and traffic conditions; therefore, values reported by different studies or manuals should be treated as context-dependent references [7, 16, 22, 28]. The simplified categories retained from the original manuscript are shown in Table 2.1.
+Traffic flow at signalized intersections is described by volume, speed, and density [5]. Yogyakarta traffic is heterogeneous and includes a substantial proportion of motorcycles [6]. Because vehicle classes occupy different amounts of road space, vehicle counts alone may not represent traffic demand adequately [1]. The Passenger Car Unit (PCU) concept expresses mixed vehicle classes as equivalent passenger-car units. PCU values vary with vehicle and road conditions; the original simplified reference values are retained in Table 2.1 [7, 16, 22, 28].
 
 **Table 2.1. Passenger Car Unit (PCU) equivalent factors for heterogeneous traffic**
 
@@ -92,57 +90,47 @@ The Passenger Car Unit (PCU) concept expresses different vehicle classes as equi
 | Medium Heavy Vehicle / Bus (MHV) | 2.00 | MKJI / Sugiarto et al. [7] (simplified) |
 | Heavy Vehicle / Large Truck (HV) | 2.00 | MKJI / Sugiarto et al. [7] (simplified) |
 
-For comparison, a study of motorcycle-dominated pretimed intersections in Banda Aceh estimated PCU values of 0.24 for motorcycles and 1.00 for passenger cars [7]. The difference reflects the dependence of PCU values on local traffic and approach conditions. These reference categories are not a direct one-to-one mapping to all eight ARGUS detector classes. ARGUS therefore retains a separate set of operational weights, listed in Table 3.1, for its software simulation.
+A study in motorcycle-dominated Banda Aceh traffic reported values of 0.24 for motorcycles and 1.00 for passenger cars, illustrating that PCU values are context-dependent [7]. Table 2.1 is a theoretical reference, not a direct mapping of all ARGUS detector classes. ARGUS uses separate operational weights, specified in Chapter 3.
 
-The weighted traffic score for approach $$i$$ is:
+The weighted approach score is:
 
 $$
 W_i=\sum_{c=1}^{C}N_{i,c}w_c
 $$
 
-where $$N_{i,c}$$ is the detected count of vehicle class $$c$$ on approach $$i$$, and $$w_c$$ is the configured class weight. The result is an estimate based on detected counts and assigned weights, not a direct measurement of queue length or traffic density [3, 4].
+where $$N_{i,c}$$ is the detected count of class $$c$$ on approach $$i$$ and $$w_c$$ is its assigned weight. This score estimates weighted demand; it does not directly measure queue length or density [3, 4].
 
 ### 2.1.2 Computer Vision
 
-Computer vision is used in Intelligent Transportation Systems to detect and classify road users from camera images [5, 20]. The YOLO family performs object detection by predicting object locations and classes in an image. ARGUS uses a trained YOLO26n checkpoint to identify eight vehicle classes: ambulance, bus, car, fire engine, military vehicle, motorcycle, police car, and truck. YOLO26 is documented in the cited technical preprint [17].
-
-Detection performance can be affected by lighting, camera angle, image quality, occlusion, and differences between training images and operational video. Accordingly, model performance must be assessed against labelled test data rather than inferred from confidence scores alone.
+Computer vision detects and classifies road users from camera images and is widely applied in intelligent traffic systems [5, 20]. ARGUS uses a trained YOLO26n model to detect eight vehicle classes. Detection may be affected by lighting, camera angle, image quality, and occlusion; therefore, performance must be evaluated against labelled test data rather than confidence scores alone [17].
 
 ### 2.1.3 Acoustic Signals
 
-Sirens provide an additional source of evidence for identifying emergency vehicles, particularly when visual detection is affected by occlusion. Previous studies have examined acoustic emergency-vehicle detection and the integration of audio and visual information [8–12].
-
-The ARGUS audio subsystem uses pretrained YAMNet to extract 1,024-dimensional audio embeddings [27]. A Logistic Regression classifier then classifies the embeddings into four categories: ambulance, firetruck, police, and traffic. The emergency audio score is the sum of the classifier scores for ambulance, firetruck, and police. In the current GUI, audio is taken from the soundtrack of a user-selected local video and analysed in three-second segments after conversion to mono, 16 kHz audio.
+Sirens provide an additional cue for emergency-vehicle identification, complementing visual detection when vehicles are occluded. Previous studies have investigated acoustic and audio-visual emergency-vehicle detection [8–12]. ARGUS uses pretrained YAMNet embeddings and a Logistic Regression classifier to classify audio as ambulance, firetruck, police, or traffic [27]. Its emergency audio score combines the three emergency-class scores. Audio is analysed from the soundtrack of a user-selected local video in three-second mono segments at 16 kHz.
 
 ### 2.1.4 Control Algorithm
 
-Traffic-signal control algorithms translate traffic observations into signal-timing decisions. Fixed-time control uses predetermined timing plans, whereas adaptive control adjusts timing according to observed demand [2–5, 14]. Emergency-vehicle preemption also requires a controlled transition between signal phases rather than an immediate change of right-of-way [23, 24].
+Fixed-time control follows predetermined signal plans, whereas adaptive control adjusts timing to observed demand [2–5, 14]. Emergency preemption requires safe phase transitions rather than an immediate right-of-way change [23, 24].
 
-In ARGUS, the four approach scores $$W_i$$ are calculated using the vehicle counts and operational weights defined in Section 2.1.1. The simulator allocates a total green-time budget of 120 seconds. Each approach first receives the configured minimum of 10 seconds; the remaining 80 seconds are distributed in proportion to the approach scores. If an approach reaches the 40-second maximum, it is removed from the active distribution and its remaining share is redistributed among the other approaches. When all scores are zero, the remaining time is divided equally. The resulting allocation satisfies:
+ARGUS allocates 120 seconds of green time across four approaches. Each receives at least 10 seconds, with a maximum of 40 seconds; the remaining time is distributed according to weighted approach scores using a water-filling procedure. Capped shares are redistributed, and zero-demand cases receive equal allocation:
 
 $$
 \sum_{i=1}^{4}G_i=120,\qquad 10\leq G_i\leq40
 $$
 
-This bounded redistribution is implemented as a weighted water-filling procedure, followed by integer rounding while preserving the total allocation.
-
-Each of the four approach phases is followed by a 3-second yellow interval and a 1-second all-red interval. Thus, the nominal duration of one complete normal rotation is:
+Each approach is followed by 3 seconds of yellow and 1 second of all-red, giving a nominal normal rotation of:
 
 $$
 T_{\mathrm{rotasi}}=120+4(3+1)=136\text{ seconds}
 $$
 
-This value describes the configured normal four-approach rotation; emergency preemption or manual intervention can change the elapsed duration.
-
-Emergency priority is requested only when the visual emergency confidence and aggregate audio emergency score both exceed 0.65 on the same approach:
+Emergency priority is requested only when visual emergency confidence and the aggregate audio emergency score both exceed 0.65 on the same approach:
 
 $$
 E_i=(V_i>0.65)\land(A_i>0.65)
 $$
 
-The comparison is strict. A confirmed request sets that approach as the next target unless a manual override is active; the yellow and all-red clearance intervals are retained. The thresholds are software parameters, not field-calibrated safety settings.
-
----
+The thresholds are software settings, and the signal retains its yellow and all-red clearance intervals.
 
 # CHAPTER 3 — RESEARCH METHOD
 
@@ -320,4 +308,4 @@ This checklist is an internal editing note and should be removed from the submit
 - Do not claim physical traffic-light control, time compensation, reduced queue length, reduced emergency travel time, or field deployment unless those capabilities are implemented and directly evaluated.
 - Check every in-text citation against the bibliography and the specific claim it supports.
 
-**Page-count verification is still required in the official I2ASPO Word template.** If the formatted manuscript exceeds 13 pages, shorten repeated wording and nonessential detail without removing the global-to-local background structure, the PCU reference table, the aligned research questions and objectives, or the methodological steps needed to reproduce the simulation.
+**Page-count verification is required in the official I2ASPO Word template.** Chapters 1–5 combined must not exceed 13 pages, and Chapter 2 must not exceed 2 pages. Allocate the remaining space across Chapters 1, 3, 4, and 5; do not treat the earlier chapter allocations as valid page targets.
