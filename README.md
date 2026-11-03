@@ -25,7 +25,7 @@ The launcher lets each approach (Utara, Timur, Selatan, Barat) use a CCTV Jogja 
 
 - **Vision:** YOLO26n 100-epoch checkpoint, eight classes, default confidence 0.15, NMS IoU 0.60, 640 inference size, five-frame median count smoothing.
 - **Vehicle weighting:** simulator weights are Ambulance 1.00, Bus 2.00, Car 1.00, Fire engine 2.00, Military 2.00, Motorcycle 0.33, Police car 1.00, Truck 2.00. These are study-defined operational weights, not universally validated PCU standards.
-- **Green allocation:** 120 seconds of green time distributed across four approaches in proportion to weighted counts, bounded to 10–40 seconds per approach. Yellow (3 s) and all-red (1 s) are additional transition-clearance times.
+- **Green allocation:** 120 seconds of green time distributed across four approaches in proportion to weighted counts, bounded to 10–40 seconds per approach. Yellow (3 s) and all-red (1 s) are additional transition-clearance times; one normal four-approach rotation therefore takes 136 seconds (120 s green allocation + 16 s clearance).
 - **Audio:** local video soundtrack → FFmpeg decode → 3-second mono 16 kHz segments → YAMNet 1,024-dimensional embeddings → trained Logistic Regression classifier.
 - **Emergency preemption:** visual confidence for Ambulance/Fire engine/Police car and aggregate audio emergency score must both exceed 0.65 on the same approach. These are initial thresholds, not field-calibrated values.
 
