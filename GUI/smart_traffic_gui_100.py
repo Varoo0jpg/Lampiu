@@ -778,15 +778,13 @@ class TrafficGUI(ctk.CTk):
         # Ambil soundtrack dari sumber video lokal mana pun yang dipilih pada
         # launcher Jogja. Audio tidak bergantung pada lajur Barat atau status YOLO.
         self.audio_video_lane = None
-        selected_local_video = next(
-            (
-                (lajur, sumber) for lajur, sumber in SUMBER_KAMERA.items()
-                if isinstance(sumber, str)
-                and os.path.isfile(sumber)
-                and not sumber.lower().startswith(("http://", "https://"))
-            ),
-            (None, None),
-        )
+        local_video_sources = [
+            (lajur, sumber) for lajur, sumber in SUMBER_KAMERA.items()
+            if isinstance(sumber, str)
+            and os.path.isfile(sumber)
+            and not sumber.lower().startswith(("http://", "https://"))
+        ]
+        selected_local_video = local_video_sources[0] if local_video_sources else (None, None)
         self.audio_video_lane, self.video_file_path = selected_local_video
         # Gunakan hanya video lokal yang benar-benar dipilih pengguna di launcher.
         # Jangan pernah menyisipkan video bawaan atau mengubah SUMBER_KAMERA Utara.
@@ -806,9 +804,13 @@ class TrafficGUI(ctk.CTk):
             with VIDEO_CONTROL["lock"]:
                 VIDEO_CONTROL["duration"] = frames_duration / fps_duration if fps_duration > 0 else 0.0
                 VIDEO_CONTROL["lane"] = self.audio_video_lane or "Utara"
-            self.lbl_file_audio.configure(
-                text=f"Audio dari video: {os.path.basename(self.video_file_path)}"
+            audio_source_note = (
+                f"Audio dari video: {os.path.basename(self.video_file_path)}"
+                f" | Lajur {self.audio_video_lane} | mute awal"
             )
+            if len(local_video_sources) > 1:
+                audio_source_note += " | soundtrack hanya dari video lokal pertama"
+            self.lbl_file_audio.configure(text=audio_source_note)
             self.lbl_hasil_audio_video.configure(
                 text="Menyiapkan audio video dan model klasifikasi...",
                 text_color="#5dade2",
