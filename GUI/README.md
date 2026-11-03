@@ -1,215 +1,128 @@
-# Smart Traffic Light GUI — YOLO26n 100 Epochs
+# Lampiu — Simulasi Lampu Lalu Lintas Adaptif
 
-Dokumentasi untuk aplikasi pada folder ini, terutama `smart_traffic_gui_100.py`. Aplikasi dibuat dengan CustomTkinter dan ditujukan untuk simulasi, eksperimen, serta pengumpulan data penelitian. Aplikasi ini **bukan pengendali lampu lalu lintas yang siap dipasang pada jalan umum**.
+Repository ini berisi beberapa generasi prototipe deteksi kendaraan dan analisis audio. **Implementasi GUI utama yang didokumentasikan saat ini adalah `GUI/smart_traffic_gui_100.py`**, dengan launcher pemilihan sumber CCTV/video pada `GUI/smart_traffic_jogja.py`.
 
-## File utama
+Lampiu pada repository ini merupakan **simulasi perangkat lunak untuk penelitian dan pengujian terkontrol**. Program tidak mengirim perintah ke pengendali lampu lalu lintas fisik dan tidak boleh diperlakukan sebagai sistem kendali jalan umum.
 
-| File | Fungsi |
-|---|---|
-| `smart_traffic_gui_100.py` | GUI simulasi empat lajur dengan deteksi YOLO26n 100 epoch, prioritas kendaraan, dan input audio MP3 |
-| `smart_traffic_gui.py` | Versi GUI sebelumnya; tidak memuat seluruh fitur tambahan pada versi 100 epoch |
-| `smart_traffic_jogja.py` | Launcher integrasi CCTV Jogja yang menggunakan ulang GUI, model, deteksi, dan simulasi dari versi 100 epoch |
-| `100ep.pt` | Checkpoint model YOLO26n 100 epoch yang tersedia secara lokal |
-| `requirements.txt` | Dependensi dasar proyek GUI |
+## Mulai menjalankan GUI utama
 
-Jalankan GUI utama versi 100 epoch:
+Gunakan Python 3.10 atau 3.11. Dari direktori root repository:
 
 ```bash
-python GUI/smart_traffic_gui_100.py
-```
+python -m venv .venv
+# Windows:
+.venv\\Scripts\\activate
+# Linux/macOS:
+source .venv/bin/activate
 
-Untuk menggunakan sumber CCTV Jogja melalui pemilih sumber video, jalankan launcher integrasi:
-
-```bash
+python -m pip install --upgrade pip
+python -m pip install -r GUI/requirements.txt
 python GUI/smart_traffic_jogja.py
 ```
 
-## Model YOLO26n 100 epoch
+Launcher menyediakan pemilihan sumber untuk masing-masing lajur: CCTV Jogja yang tersedia di `GUI/cameras.json`, webcam lokal, file video lokal, sumber bawaan, atau Nonaktif. Untuk skenario audio darurat yang saat ini didukung, pilih **satu video lokal yang memiliki trek audio** pada lajur yang disimulasikan.
 
-Aplikasi menggunakan checkpoint hasil training pada repositori [Yolo26n_100ep](https://github.com/Varoo0jpg/Yolo26n_100ep).
-
-- Sumber checkpoint: `weights/best.pt` pada repositori training.
-- Nama file lokal default: `100ep.pt`, disimpan di folder `GUI`.
-- Jika checkpoint belum ada, aplikasi mencoba mengunduhnya otomatis dari repositori training.
-- Jika unduhan gagal, pengguna dapat memilih file checkpoint `.pt` secara manual melalui dialog aplikasi.
-- Variabel lingkungan `SMART_TRAFFIC_MODEL` dapat digunakan untuk menunjuk ke checkpoint lokal lain.
-
-Model harus memiliki tepat delapan kelas dengan urutan berikut. Aplikasi memvalidasi jumlah dan nama kelas sebelum inferensi.
-
-| ID | Kelas |
-|---:|---|
-| 0 | Ambulance |
-| 1 | Bus |
-| 2 | Car |
-| 3 | Fire engine |
-| 4 | Military |
-| 5 | Motorcycle |
-| 6 | Police car |
-| 7 | Truck |
-
-## Instalasi
-
-Jalankan dari direktori utama repository:
+Untuk membuka GUI tanpa pemilih sumber CCTV, jalankan:
 
 ```bash
-python -m pip install --upgrade pip
-python -m pip install -r GUI/requirements.txt
-python -m pip install librosa
-```
-
-Dependensi `librosa` diperlukan untuk analisis audio MP3 pada `smart_traffic_gui_100.py`. Untuk menghindari pemasangan ke interpreter Python yang berbeda, gunakan interpreter virtual environment yang sama untuk instalasi dan menjalankan aplikasi.
-
-Contoh Windows (sesuaikan path virtual environment):
-
-```bat
-.venv\Scripts\python.exe -m pip install -r GUI\requirements.txt
-.venv\Scripts\python.exe -m pip install librosa
-.venv\Scripts\python.exe GUI\smart_traffic_gui_100.py
-```
-
-Jika virtual environment berada di dalam folder lain, gunakan path lengkap ke `python.exe` milik environment tersebut pada ketiga perintah.
-
-## Konfigurasi model lokal
-
-Windows CMD:
-
-```bat
-set SMART_TRAFFIC_MODEL=C:/path/to/best.pt
 python GUI/smart_traffic_gui_100.py
 ```
 
-PowerShell:
+## Peta file
 
-```powershell
-$env:SMART_TRAFFIC_MODEL = "C:/path/to/best.pt"
-python GUI/smart_traffic_gui_100.py
-```
+| Lokasi | Peran |
+|---|---|
+| `GUI/smart_traffic_jogja.py` | Launcher pemilihan sumber video/CCTV per lajur |
+| `GUI/smart_traffic_gui_100.py` | Implementasi GUI utama, YOLO, alokasi waktu hijau, preemption, audio, dan pencatatan data |
+| `GUI/audio_siren.py` | Inferensi YAMNet embedding + classifier Logistic Regression |
+| `GUI/video_audio.py` | Ekstraksi soundtrack dari video lokal menggunakan FFmpeg |
+| `GUI/audio_models/best_audio_classifier_v2.joblib` | Artefak classifier audio terlatih |
+| `GUI/100ep.pt` | Checkpoint YOLO26n 100 epoch (jika tersedia lokal) |
+| `GUI/cameras.json` | Daftar sumber CCTV Jogja yang ditampilkan launcher |
+| `GUI/cctv_sources.json` | Sumber bawaan yang dibaca GUI utama; nilai kosong berarti tidak ada sumber bawaan |
+| `GUI/README.md` | Konfigurasi dan rincian implementasi GUI utama |
+| `AUDIO_SETUP.md` | Catatan prototipe audio lama pada folder `Coba/` |
+| `Coba/` | Eksperimen/prototipe terdahulu; bukan entry point GUI utama saat ini |
 
-Jika `SMART_TRAFFIC_MODEL` diatur tetapi file tidak ditemukan, aplikasi tidak menggunakan unduhan otomatis sebagai pengganti; pastikan path tersebut benar atau hapus variabel itu agar mekanisme unduhan default dapat digunakan.
+## Ringkasan konfigurasi implementasi utama
 
-## Kamera dan sumber video
+### Deteksi visual
 
-Pada kode saat ini, seluruh sumber kamera bawaan bernilai `None`. Karena itu, feed kamera tidak otomatis aktif setelah aplikasi dibuka. Atur dictionary `SUMBER_KAMERA` di bagian konfigurasi awal `smart_traffic_gui_100.py` menggunakan perangkat atau file video yang benar-benar tersedia.
+- Checkpoint: YOLO26n hasil pelatihan 100 epoch, dengan delapan kelas: Ambulance, Bus, Car, Fire engine, Military, Motorcycle, Police car, dan Truck.
+- Confidence awal: 0,15; rentang slider GUI 0,05–0,80.
+- NMS IoU awal: 0,60; rentang slider GUI 0,30–0,90.
+- Ukuran inferensi: 640; frame proses: 640 × 480.
+- Jumlah kendaraan distabilkan dengan median lima frame.
+- ROI nonaktif secara default; bila diaktifkan, poligon perlu disesuaikan dengan masing-masing kamera.
 
-Contoh kamera USB:
+### Bobot kendaraan
 
-```python
-SUMBER_KAMERA = {
-    "Utara": 0,
-    "Timur": 1,
-    "Selatan": 2,
-    "Barat": 3,
-}
-```
+Nilai yang benar-benar dipakai oleh GUI utama:
 
-Contoh video lokal:
+| Kelas | Bobot operasional |
+|---|---:|
+| Ambulance | 1,00 |
+| Bus | 2,00 |
+| Car | 1,00 |
+| Fire engine | 2,00 |
+| Military | 2,00 |
+| Motorcycle | 0,33 |
+| Police car | 1,00 |
+| Truck | 2,00 |
 
-```python
-SUMBER_KAMERA = {
-    "Utara": "videos/utara.mp4",
-    "Timur": "videos/timur.mp4",
-    "Selatan": "videos/selatan.mp4",
-    "Barat": "videos/barat.mp4",
-}
-```
+Rumus skor lajur adalah `W = Σ(jumlah kelas × bobot kelas)`. Nilai di atas adalah **parameter operasional simulator**, bukan klaim bahwa seluruhnya merupakan nilai PCU universal atau telah divalidasi untuk kondisi lalu lintas Yogyakarta. Prioritas kendaraan darurat ditangani secara terpisah melalui konfirmasi visual-audio, bukan dengan menaikkan bobot PCU kendaraan darurat.
 
-URL YouTube, jika digunakan, memerlukan konfigurasi dan dependensi resolver yang sesuai. `yt-dlp` tercantum sebagai dependensi opsional untuk skenario tersebut. Jangan menganggap sumber kamera telah aktif sebelum diuji pada perangkat yang digunakan.
+### Alokasi dan transisi sinyal
 
-ROI bawaan tidak aktif (`GUNAKAN_ROI = False`). Jika ROI diaktifkan, koordinat poligon harus disesuaikan dan dikalibrasi untuk masing-masing sudut kamera.
+- Urutan normal lajur adalah Utara → Timur → Selatan → Barat.
+- Total alokasi waktu hijau untuk empat lajur adalah 120 detik per putaran alokasi.
+- Durasi hijau setiap lajur dibatasi 10–40 detik dan dibagi secara proporsional terhadap skor bobot kendaraan.
+- Bobot diambil sebagai satu snapshot untuk satu putaran alokasi.
+- Kuning berlangsung 3 detik dan all-red 1 detik pada setiap transisi. Karena clearance ditambahkan pada transisi, total waktu kalender untuk satu putaran lengkap **lebih panjang daripada 120 detik**.
+- Jika skor semua lajur nol, waktu hijau dibagi rata.
+- Preemption darurat dapat mengubah target lajur berikutnya, tetapi tetap melewati kuning dan all-red. Urutan normal selain preemption tetap searah jarum jam.
 
-## Integrasi CCTV Jogja
+### Audio dan konfirmasi darurat
 
-`smart_traffic_jogja.py` menambahkan pemilih sumber video sebelum membuka GUI utama. File ini mengimpor `smart_traffic_gui_100.py` dan menggunakan ulang model, detektor YOLO, panel data, serta logika simulasi yang sudah ada. Integrasi ini tidak melatih ulang model dan tidak mengubah kelas deteksi.
+GUI utama tidak menerima MP3 terpisah sebagai sumber input skenario saat ini. Audio berasal dari **trek audio video lokal** yang dipilih melalui launcher.
 
-### Sumber video yang tersedia
+Alur audio:
+1. Program memilih video lokal yang dipasangkan dengan salah satu lajur.
+2. `GUI/video_audio.py` mengekstrak soundtrack video menjadi PCM stereo 44,1 kHz.
+3. GUI memproses potongan audio berdurasi 3 detik, mengubahnya menjadi mono, lalu melakukan resampling ke 16 kHz.
+4. `GUI/audio_siren.py` menjalankan YAMNet untuk menghasilkan embedding 1.024 dimensi.
+5. Embedding dirata-ratakan per potongan dan diklasifikasikan oleh Logistic Regression yang disimpan pada artefak `best_audio_classifier_v2.joblib`.
+6. Kelas classifier: `ambulance`, `firetruck`, `police`, dan `traffic`. Skor audio darurat adalah penjumlahan skor tiga kelas darurat, bukan skor kelas YAMNet `Siren` mentah.
 
-Setiap lajur (Utara, Timur, Selatan, dan Barat) dapat dipasangkan secara terpisah dengan:
+Catatan pengoperasian:
+- Video lokal diputar dalam keadaan **mute secara default**. Analisis audio tetap berjalan. Tekan tombol **Nyalakan suara** jika soundtrack perlu terdengar pada skenario uji.
+- Kontrol jeda, seek, mute, dan pemindahan video ke lajur tersedia di panel kontrol video.
+- Untuk mencegah pemetaan audio yang ambigu, gunakan satu video lokal sebagai skenario audio darurat. Bila beberapa video lokal dipasang, GUI saat ini mengambil video lokal pertama yang ditemukan sebagai sumber soundtrack; video lokal lainnya tidak menjadi sumber audio terpisah.
+- Skor agregat classifier bukan probabilitas yang telah dikalibrasi untuk penggunaan operasional.
 
-- CCTV Jogja yang tercantum di `GUI/cameras.json`.
-- Sumber bawaan dari konfigurasi GUI 100 epoch.
-- Webcam lokal (indeks 0, 1, atau 2).
-- File video lokal yang dipilih melalui dialog.
-- `Nonaktif` jika lajur tidak digunakan.
+Konfirmasi dual-modal pada lajur yang sama mensyaratkan:
+- Confidence deteksi visual kelas Ambulance, Fire engine, atau Police car **lebih besar dari 0,65**; dan
+- Skor agregat audio darurat **lebih besar dari 0,65**.
 
-Untuk pengujian awal, gunakan satu kamera CCTV pada satu lajur dan setel lajur lain ke `Nonaktif`. Setelah stream dan deteksi terverifikasi, tambahkan sumber lain secara bertahap.
+Kedua syarat menggunakan operator `>` (bukan `>=`). Nilai 0,65 adalah ambang awal konfigurasi dan belum dinyatakan sebagai hasil kalibrasi lapangan.
 
-### Data kamera dan validasi sumber
+### Artefak classifier audio
 
-Launcher membaca daftar kamera dari `cameras.json` yang berada di folder `GUI` (satu folder dengan launcher). Pastikan file tersebut tersedia. Entri hanya ditampilkan jika:
-
-- `alive` bernilai `true` pada data lokal;
-- URL menggunakan HTTPS, host `cctvjss.jogjakota.go.id`, dan path playlist berakhiran `.m3u8`;
-- field `headers` kosong atau tidak disediakan.
-
-Status `alive` merupakan hasil pemeriksaan terdahulu, bukan jaminan kamera sedang aktif ketika aplikasi dijalankan. Stream tetap dapat gagal dibuka atau terputus. Jika kamera baru tidak muncul, periksa `GUI/cameras.json` dan perbarui daftar melalui prosedur pengelolaan CCTV yang sudah ada. Launcher tidak melakukan pemindaian massal kamera ketika dibuka.
-
-### Menjalankan integrasi
-
-Jalankan perintah dari root repository:
-
-```bat
-python -m pip install -r GUI\requirements.txt
-python GUI\smart_traffic_jogja.py
-```
-
-Jika instalasi audio MP3 dibutuhkan oleh GUI dasar, pasang juga `librosa` pada interpreter Python yang sama:
-
-```bat
-python -m pip install librosa
-```
-
-Setelah pemilih sumber terbuka, tentukan sumber untuk setiap lajur lalu tekan **Jalankan Smart Traffic Lampiu**. Model dan pipeline inferensi tetap berasal dari `smart_traffic_gui_100.py`; checkpoint mengikuti mekanisme pemuatan model pada GUI tersebut.
-
-### Batasan integrasi CCTV
-
-- Integrasi ini menggunakan stream CCTV sebagai input video untuk deteksi dan simulasi, bukan sebagai kontroler lampu fisik.
-- Tidak ada perintah yang dikirim ke perangkat pengendali lampu lalu lintas.
-- Ketersediaan, latensi, resolusi, sudut kamera, dan kestabilan stream bergantung pada layanan CCTV dan jaringan.
-- Pengujian satu stream perlu dilakukan terlebih dahulu sebelum menggunakan beberapa stream secara bersamaan.
-- Bila stream tidak dapat dibuka, verifikasi koneksi internet, status kamera, dan dukungan OpenCV/FFmpeg pada lingkungan Python.
-- Data `cameras.json` dapat berubah; jangan menganggap seluruh kamera yang tercatat selalu tersedia.
-
-## Logika simulasi lampu
-
-GUI menyediakan mode Otomatis dan Manual untuk empat lajur: Utara, Timur, Selatan, dan Barat. Pada mode Otomatis, pemilihan lajur berikutnya mempertimbangkan prioritas berikut:
-
-1. Kendaraan darurat terdeteksi dan indikasi sirene pada lajur yang sama.
-2. Kendaraan darurat terdeteksi (Ambulance, Fire engine, atau Police car).
-3. Indikasi sirene dari analisis MP3 yang diasosiasikan pengguna dengan suatu lajur.
-4. Ambang kepadatan berdasarkan total bobot seluruh kendaraan pada lajur. Ambang default adalah **5,0**, setara dengan contoh kombinasi 2 Car (2 × 1,0) + 2 Truck (2 × 1,5). Kombinasi tersebut bukan syarat wajib; kombinasi kelas apa pun dapat memicu prioritas jika total bobotnya mencapai atau melampaui 5,0.
-5. Mekanisme anti-starvation dan skor kepadatan berbobot biasa.
-
-Rumus total bobot:
-
-`W = Σ (jumlah_kendaraan_kelas × bobot_kelas)`
-
-Bobot yang digunakan: Ambulance 5,0; Bus 1,5; Car 1,0; Fire engine 5,0; Military 2,0; Motorcycle 0,5; Police car 5,0; Truck 1,5. Contoh lain yang memenuhi ambang 5,0 adalah 5 Car, 10 Motorcycle, atau 4 Bus.
-
-Perpindahan fase tetap melewati lampu kuning. Prioritas tidak memotong fase hijau yang sedang berjalan secara langsung; pemilihan prioritas berlaku ketika sistem menentukan lajur berikutnya. Durasi hijau tetap mengikuti mekanisme alokasi waktu pada aplikasi.
-
-Bobot kendaraan dan ambang 5,0 merupakan parameter model simulasi yang harus dijustifikasi dan divalidasi melalui skenario penelitian. Nilai ini bukan standar PCU atau standar rekayasa lalu lintas yang telah divalidasi.
-
-## Analisis audio MP3
-
-Versi `smart_traffic_gui_100.py` menyediakan pemilihan file MP3, pemilihan lajur terkait, dan analisis indikasi sirene.
-
-**Status implementasi:** analisis audio saat ini menggunakan pendekatan heuristik berbasis fitur audio melalui `librosa`, bukan model klasifikasi audio terlatih. Implementasi ini **belum menggunakan YAMNet**. Nilai confidence yang ditampilkan merupakan skor heuristik, bukan probabilitas terkalibrasi.
-
-Beberapa suara seperti klakson, alarm, musik, atau suara mesin dapat memicu indikasi keliru. Ambang deteksi perlu diuji dan dikalibrasi menggunakan kumpulan audio sirene serta non-sirene yang representatif.
-
-File MP3 dipasangkan ke lajur melalui pilihan pengguna. Aplikasi tidak dapat menentukan lokasi sumber sirene secara otomatis hanya dari satu rekaman audio umum. Fitur ini merupakan analisis file, bukan pemantauan audio real-time.
+Riwayat eksperimen pelatihan proyek mencatat Logistic Regression dengan `C=100` sebagai konfigurasi terpilih dari kandidat C yang diuji. File inferensi hanya memuat artefak terlatih dan memeriksa keberadaan `predict_proba` serta empat nama kelas; modul inferensi tidak melatih ulang model atau menetapkan ulang nilai C. Catatan parameter dan batas verifikasinya ada di `GUI/audio_models/README.md`.
 
 ## Data penelitian
 
-Panel data penelitian mendukung perekaman snapshot berkala dan ekspor CSV mentah maupun ringkasan. Setiap snapshot merepresentasikan kondisi yang terbaca pada saat pencatatan; baris snapshot tidak menunjukkan identitas kendaraan unik. Periksa data hasil ekspor dan dokumentasikan kondisi pengujian sebelum menggunakannya dalam analisis atau laporan.
+GUI utama dapat merekam snapshot per lajur dan mengekspor CSV mentah serta ringkasan. Setiap baris adalah snapshot kondisi saat pencatatan, bukan identitas kendaraan unik atau hasil evaluasi performa model. Catat sumber video, konfigurasi slider, bobot, ambang, dan skenario saat melakukan eksperimen agar data dapat direproduksi.
 
-## Batasan dan status pengujian
+**Bab 4/hasil eksperimen belum menjadi bagian dari audit perubahan ini.** Repository dan dokumentasi ini tidak menambahkan angka performa atau klaim efektivitas sistem yang belum diuji.
 
-- Sumber kamera default belum diisi dan harus dikonfigurasi sendiri.
-- Ketepatan deteksi YOLO dapat berubah karena pencahayaan, sudut kamera, jarak, oklusi, dan kualitas video.
-- Analisis sirene masih heuristik dan dapat menghasilkan false positive maupun false negative.
-- Input MP3 tidak melokalisasi sumber suara secara otomatis.
-- Bobot kendaraan, ambang kepadatan, dan skor audio belum boleh dianggap sebagai standar terukur tanpa validasi.
-- Kompatibilitas dependensi, performa, dan hasil deteksi perlu diuji pada lingkungan pengguna.
+## Prototipe terdahulu
 
-Gunakan aplikasi ini untuk simulasi dan penelitian terkontrol. README ini tidak menyatakan bahwa sistem telah memenuhi persyaratan keselamatan atau regulasi untuk mengendalikan lampu lalu lintas nyata.
+Folder `Coba/` berisi eksperimen lama, termasuk pipeline YAMNet yang menilai kelas AudioSet `Siren` secara langsung dengan `SIREN_THRESHOLD=0.25`. Itu **bukan** pipeline audio GUI utama saat ini. Lihat `AUDIO_SETUP.md` untuk batasan dan dependensinya.
+
+## Batasan keselamatan dan penggunaan
+
+- Gunakan hanya untuk simulasi, pengembangan, dan penelitian terkontrol.
+- Jangan menghubungkan prototipe ini ke pengendali lampu lalu lintas jalan umum.
+- CCTV dan file video merupakan input pengamatan; sistem tidak mengontrol kamera atau infrastruktur CCTV.
+- Akurasi, latency, threshold, bobot kendaraan, dan keselamatan transisi perlu diuji pada lingkungan serta skenario yang ditentukan sebelum menarik kesimpulan penelitian.
