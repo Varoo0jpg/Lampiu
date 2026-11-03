@@ -33,9 +33,10 @@ from PIL import Image
 # ===============================================================
 DAFTAR_LAJUR = ["Utara", "Timur", "Selatan", "Barat"]
 
-# Bobot PCU awal untuk simulasi. Nilai harus disitasi/divalidasi terhadap
-# standar empiris yang dipakai dalam paper sebelum dipakai sebagai hasil ilmiah.
-# Prioritas darurat dipisahkan dari PCU dan ditentukan oleh konfirmasi dual-modal.
+# Bobot operasional yang dipakai oleh simulator (bukan klaim nilai PCU universal).
+# Nilai ini harus divalidasi terhadap pedoman/karakteristik lokasi sebelum
+# diperlakukan sebagai parameter rekayasa lalu lintas.
+# Prioritas kendaraan darurat dipisahkan dari skor bobot dan memakai dual-modal.
 BOBOT_KENDARAAN = {
     "Ambulance": 1.0,   # kendaraan ringan
     "Bus": 2.0,         # kendaraan berat
@@ -52,11 +53,12 @@ FASE_HIJAU_MAX = 40
 FASE_KUNING = 3
 FASE_ALL_RED = 1
 
-# Siklus 120 detik mencakup seluruh fase clearance untuk empat pendekat.
-TOTAL_WAKTU_SIKLUS = 120
-ALPHA_KOMPENSASI_TUNGGU = 0.01  # PCU tambahan per detik tunggu; parameter awal untuk kalibrasi
+# Total alokasi hijau untuk empat lajur; clearance ditambahkan pada setiap transisi.
+TOTAL_ALOKASI_HIJAU = 120
+ALPHA_KOMPENSASI_TUNGGU = 0.01  # Faktor tie-breaker lajur darurat berdasarkan waktu tunggu.
 AMBANG_VISUAL_DARURAT = 0.65
-AMBANG_SIRENE = 0.65       # Ambang tampilan awal; belum dikalibrasi untuk keputusan operasional
+AMBANG_AUDIO_DARURAT = 0.65  # Skor agregat classifier; nilai awal, belum dikalibrasi.
+KELAS_VISUAL_DARURAT = {"Ambulance", "Fire engine", "Police car"}
 
 # Kode Warna UI Hexadecimal
 HEX_RED = "#e74c3c"
@@ -206,13 +208,8 @@ ROI = {l: list(ROI_DEFAULT) for l in DAFTAR_LAJUR}
 # True  = hanya hitung kendaraan di dalam poligon ROI (garis kuning)
 GUNAKAN_ROI = False
 
-# Pemilihan lajur hijau berikutnya pada mode OTOMATIS:
-#   "PADAT"    = lajur dengan skor tertinggi didahulukan (dengan batas tunggu maksimum)
-#   "BERGILIR" = urutan tetap Utara -> Timur -> Selatan -> Barat
-PILIH_LAJUR_BERIKUT = "PADAT"
-BATAS_TUNGGU_MAKS = 180          # detik; batas anti-starvation
-AMBANG_SIRENE = 0.65       # Ambang tampilan awal; belum dikalibrasi untuk keputusan operasional
-AMBANG_KAPASITAS_LAJUR = 5.0  # Setara contoh 2 Car + 2 Truck; total bobot semua kelas
+# Urutan normal lajur tetap searah jarum jam. Alokasi durasi hijau bersifat
+# adaptif terhadap skor bobot; preemption darurat memakai konfirmasi dual-modal.
 
 
 # ===============================================================
@@ -585,7 +582,7 @@ class DetektorKamera(threading.Thread):
                     cv2.rectangle(img, (int(x1), int(y1)), (int(x2), int(y2)), warna, 2)
                     if dalam:
                         hitung[jenis] += 1
-                        if jenis in ("Ambulance", "Fire engine"):
+                        if jenis in KELAS_VISUAL_DARURAT:
                             confidence_darurat = max(confidence_darurat, confidence_box)
                 if GUNAKAN_ROI:
                     cv2.polylines(img, [poly], True, (0, 255, 255), 2)
@@ -1571,7 +1568,7 @@ class TrafficGUI(ctk.CTk):
         )
         self.lbl_hasil_mp3.configure(
             text=f"t={elapsed:.0f}s | {predicted} | Skor agregat {emergency * 100:.1f}%\n{rincian}",
-            text_color="#e67e22" if emergency >= AMBANG_SIRENE else "#aab7c4"
+            text_color="#e67e22" if emergency >= AMBANG_AUDIO_DARURAT else "#aab7c4"
         )
         # Pemetaan mengikuti lajur tempat video lokal dipilih pada launcher.
         # Audio tetap bersifat observasi dan tidak mengubah fase simulasi.
@@ -1597,10 +1594,10 @@ class TrafficGUI(ctk.CTk):
         predicted = result["predicted_class"]
         status = (
             "INDIKASI AUDIO DARURAT"
-            if confidence >= AMBANG_SIRENE
+            if confidence >= AMBANG_AUDIO_DARURAT
             else "Indikasi audio darurat rendah"
         )
-        warna = "#e67e22" if confidence >= AMBANG_SIRENE else "#aab7c4"
+        warna = "#e67e22" if confidence >= AMBANG_AUDIO_DARURAT else "#aab7c4"
         rincian = " | ".join(
             f"{nama}: {nilai * 100:.1f}%"
             for nama, nilai in probabilities.items()
@@ -1792,17 +1789,6 @@ class TrafficGUI(ctk.CTk):
     # -----------------------------------------------------------
     # ENGINE CORE SIMULATION LOGIC
     # -----------------------------------------------------------
-    def tentukan_lajur_paling_padat(self, lajur_kecuali):
-        """Mencari lajur dengan antrean paling padat untuk giliran berikutnya.
-        [PERBAIKAN] Jika skor sama, pilih yang paling lama menunggu (versi asli selalu
-        memilih kandidat pertama sehingga Selatan/Barat bisa tidak pernah dapat giliran)."""
-        kandidat = [l for l in DAFTAR_LAJUR if l != lajur_kecuali]
-        now = time.time()
-        return max(kandidat, key=lambda l: (self.kumpulan_panel[l].ambil_skor_bobot(),
-                                            now - self.waktu_hijau_terakhir[l]))
-
-
-       
     def skor_lajur_disesuaikan(self, lajur, now=None):
         """PCU + kompensasi waktu tunggu kumulatif (dalam detik)."""
         if now is None:
@@ -1813,39 +1799,65 @@ class TrafficGUI(ctk.CTk):
 
     def hitung_alokasi_hijau_siklus(self):
         """
-        Membagi 120 detik waktu hijau secara proporsional terhadap bobot aktual
-        empat lajur. Satu snapshot dipakai untuk satu putaran penuh agar jumlah
-        durasi keempat lajur tetap tepat 120 detik.
+        Alokasikan 120 detik hijau secara proporsional terhadap skor bobot empat
+        lajur, dengan batas 10-40 detik per lajur. Snapshot bobot dipertahankan
+        untuk satu putaran. Kuning dan all-red merupakan clearance tambahan.
         """
         bobot = {
             lajur: max(0.0, float(self.kumpulan_panel[lajur].ambil_skor_bobot()))
             for lajur in DAFTAR_LAJUR
         }
-        total_bobot = sum(bobot.values())
+        durasi = {lajur: float(FASE_HIJAU_MIN) for lajur in DAFTAR_LAJUR}
+        sisa = float(TOTAL_ALOKASI_HIJAU - FASE_HIJAU_MIN * len(DAFTAR_LAJUR))
+        aktif = set(DAFTAR_LAJUR)
 
-        if total_bobot <= 0:
-            # Tidak ada kendaraan terdeteksi: bagi rata agar semua lajur
-            # tetap memperoleh giliran dan simulasi tidak macet.
-            durasi = {lajur: TOTAL_WAKTU_SIKLUS / len(DAFTAR_LAJUR)
-                      for lajur in DAFTAR_LAJUR}
-        else:
-            durasi = {
-                lajur: (bobot[lajur] / total_bobot) * TOTAL_WAKTU_SIKLUS
-                for lajur in DAFTAR_LAJUR
-            }
+        # Water-filling berbobot: lajur yang mencapai batas maksimum dikeluarkan
+        # dari distribusi, lalu sisa waktu dibagi kembali ke lajur aktif.
+        while aktif and sisa > 1e-9:
+            total_bobot_aktif = sum(bobot[lajur] for lajur in aktif)
+            if total_bobot_aktif > 0:
+                tambahan = {
+                    lajur: sisa * bobot[lajur] / total_bobot_aktif
+                    for lajur in aktif
+                }
+            else:
+                tambahan = {lajur: sisa / len(aktif) for lajur in aktif}
 
-        # Konversi ke detik bulat dengan metode largest remainder sehingga
-        # jumlah akhirnya tetap tepat 120 detik.
+            kapasitas = FASE_HIJAU_MAX - FASE_HIJAU_MIN
+            mencapai_batas = [
+                lajur for lajur in aktif
+                if tambahan[lajur] > kapasitas + 1e-9
+            ]
+            if not mencapai_batas:
+                for lajur in aktif:
+                    durasi[lajur] += tambahan[lajur]
+                sisa = 0.0
+            else:
+                for lajur in mencapai_batas:
+                    durasi[lajur] = float(FASE_HIJAU_MAX)
+                    sisa -= kapasitas
+                    aktif.remove(lajur)
+
+        # Pembulatan largest-remainder mempertahankan total tepat 120 detik
+        # tanpa melanggar batas minimum/maksimum setiap lajur.
         hasil = {lajur: int(np.floor(durasi[lajur])) for lajur in DAFTAR_LAJUR}
-        sisa = int(TOTAL_WAKTU_SIKLUS - sum(hasil.values()))
-        urutan_sisa = sorted(
+        sisa_detik = int(TOTAL_ALOKASI_HIJAU - sum(hasil.values()))
+        urutan = sorted(
             DAFTAR_LAJUR,
             key=lambda lajur: durasi[lajur] - hasil[lajur],
             reverse=True,
         )
-        for indeks in range(sisa):
-            hasil[urutan_sisa[indeks % len(urutan_sisa)]] += 1
+        for lajur in urutan:
+            if sisa_detik <= 0:
+                break
+            if hasil[lajur] < FASE_HIJAU_MAX:
+                hasil[lajur] += 1
+                sisa_detik -= 1
 
+        if sisa_detik != 0 or sum(hasil.values()) != TOTAL_ALOKASI_HIJAU:
+            raise RuntimeError("Alokasi hijau tidak memenuhi total/batas durasi.")
+        if any(not FASE_HIJAU_MIN <= nilai <= FASE_HIJAU_MAX for nilai in hasil.values()):
+            raise RuntimeError("Durasi hijau berada di luar batas konfigurasi.")
         return hasil
 
     def hitung_durasi_fase_hijau(self, lajur_target):
@@ -1860,7 +1872,7 @@ class TrafficGUI(ctk.CTk):
         """Konfirmasi AND: confidence YOLO darurat dan skor audio harus sama-sama lolos."""
         visual = self.confidence_visual_darurat.get(lajur, 0.0) > AMBANG_VISUAL_DARURAT
         audio_value = self.audio_confidence_values.get(lajur)
-        audio = audio_value is not None and audio_value > AMBANG_SIRENE
+        audio = audio_value is not None and audio_value > AMBANG_AUDIO_DARURAT
         return visual and audio
 
     def lajur_darurat_terkonfirmasi(self):
