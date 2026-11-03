@@ -112,25 +112,27 @@ Sirens provide an additional cue for emergency-vehicle identification, complemen
 
 Fixed-time control follows predetermined signal plans, whereas adaptive control adjusts timing to observed demand [2–5, 14]. Emergency preemption requires safe phase transitions rather than an immediate right-of-way change [23, 24].
 
-ARGUS allocates 120 seconds of green time across four approaches. Each receives at least 10 seconds, with a maximum of 40 seconds; the remaining time is distributed according to weighted approach scores using a water-filling procedure. Capped shares are redistributed, and zero-demand cases receive equal allocation:
+ARGUS allocates 120 seconds of green time across four approaches. Each receives a minimum of 10 seconds and a maximum of 40 seconds. After the minimum allocation, the remaining 80 seconds are distributed according to weighted approach scores using a bounded weighted water-filling procedure. When an approach reaches its maximum, it is removed from the active distribution and its remaining share is redistributed among the other approaches. If all approach scores are zero, the remaining time is divided equally. Integer rounding preserves the total allocation:
 
 $$
-\sum_{i=1}^{4}G_i=120,\qquad 10\leq G_i\leq40
+\\sum_{i=1}^{4} G_i = 120, \\qquad 10 \\leq G_i \\leq 40
 $$
 
 Each approach is followed by 3 seconds of yellow and 1 second of all-red, giving a nominal normal rotation of:
 
 $$
-T_{\mathrm{rotasi}}=120+4(3+1)=136\text{ seconds}
+T_{\\mathrm{rotasi}} = 120 + 4(3 + 1) = 136\\,\\mathrm{s}
 $$
 
-Emergency priority is requested only when visual emergency confidence and the aggregate audio emergency score both exceed 0.65 on the same approach:
+This duration represents normal operation; emergency preemption or manual intervention may change the elapsed rotation time.
+
+Emergency priority is requested only when visual emergency confidence and aggregate audio emergency score both strictly exceed 0.65 on the same approach:
 
 $$
-E_i=(V_i>0.65)\land(A_i>0.65)
+E_i = (V_i > 0.65) \\land (A_i > 0.65)
 $$
 
-The thresholds are software settings, and the signal retains its yellow and all-red clearance intervals.
+A confirmed emergency request sets that approach as the next target unless a manual override is active. Yellow and all-red clearance intervals are retained. The thresholds are software settings, not field-calibrated safety parameters.
 
 # CHAPTER 3 — RESEARCH METHOD
 
