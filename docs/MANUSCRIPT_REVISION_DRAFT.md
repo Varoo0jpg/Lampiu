@@ -139,7 +139,7 @@ Emergency priority is requested only when the visual emergency confidence and ag
 E_i=(V_i>0.65)\land(A_i>0.65)
 \]
 
-The comparison is strict. A confirmed request changes the next approach to be served, while the yellow and all-red clearance intervals are retained. The thresholds are software parameters, not field-calibrated safety settings.
+The comparison is strict. A confirmed request sets that approach as the next target unless a manual override is active; the yellow and all-red clearance intervals are retained. The thresholds are software parameters, not field-calibrated safety settings.
 
 ---
 
@@ -181,7 +181,7 @@ The signal-timing module uses one snapshot of the four approach scores for each 
 
 For audio classification, YAMNet produces a 1,024-dimensional embedding for each three-second segment. Logistic Regression classifies the embedding into ambulance, firetruck, police, or traffic. The emergency audio score is calculated by adding the scores for the three emergency classes.
 
-The emergency-verification module applies an AND condition: the visual emergency confidence and aggregate audio emergency score must both be greater than 0.65 and belong to the same approach. When confirmed, the approach is selected for the next green phase. The signal still passes through yellow and all-red clearance intervals.
+The emergency-verification module applies an AND condition: the visual emergency confidence and aggregate audio emergency score must both be greater than 0.65 and belong to the same approach. When confirmed, the approach is selected for the next green phase unless a manual override is active. The signal still passes through yellow and all-red clearance intervals.
 
 ### 3.2.3 Output
 
@@ -248,7 +248,7 @@ The emergency-verification function confirms an approach only when both conditio
 V_i>0.65\quad\text{and}\quad A_i>0.65
 \]
 
-The confirmed approach is requested as the next green phase. Signal transitions follow the sequence green → yellow → all-red → green; emergency priority does not bypass the clearance intervals. The GUI and detection processes operate through separate processing threads so that video and audio processing do not block the interface. All signal operations remain within the software simulation.
+The confirmed approach is requested as the next green phase unless a manual override is active. Signal transitions follow the sequence green → yellow → all-red → green; emergency priority does not bypass the clearance intervals. The GUI and detection processes operate through separate processing threads so that video and audio processing do not block the interface. All signal operations remain within the software simulation.
 
 ## 3.4 Experimental Setup and Testing Scenarios
 
