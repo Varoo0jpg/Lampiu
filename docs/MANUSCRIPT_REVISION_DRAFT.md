@@ -83,23 +83,24 @@ Traffic flow at signalized intersections is commonly described through volume or
 
 The Passenger Car Unit (PCU) concept expresses different vehicle classes as equivalent passenger-car units. PCU values depend on vehicle characteristics, road geometry, and traffic conditions; therefore, values reported by different studies or manuals should be treated as context-dependent references [7, 16, 22, 28]. The simplified categories retained from the original manuscript are shown in Table 2.1.
 
-**Table 2.1. PCU values for signalized-intersection vehicle categories**
+**Table 2.1. Passenger Car Unit (PCU) equivalent factors for heterogeneous traffic**
 
-| Vehicle category (PKJI 2023) | Protected approach | Opposed approach | Reference |
-|---|---:|---:|---|
-| Motorcycle (SM) | 0.15 | 0.40 | PKJI 2023, Table 5-2 [28] |
-| Passenger car (MP) | 1.00 | 1.00 | PKJI 2023, Table 5-2 [28] |
-| Medium vehicle (KS) | 1.30 | 1.30 | PKJI 2023, Table 5-2 [28] |
+| Vehicle classification | PCU value | Reference basis |
+|---|---:|---|
+| Motorcycle (MC) | 0.25 / 0.33 | MKJI / Sugiarto et al. [7] (simplified) |
+| Light Vehicle / Passenger Car (LV) | 1.00 | Passenger-car baseline [7] |
+| Medium Heavy Vehicle / Bus (MHV) | 2.00 | MKJI / Sugiarto et al. [7] (simplified) |
+| Heavy Vehicle / Large Truck (HV) | 2.00 | MKJI / Sugiarto et al. [7] (simplified) |
 
 For comparison, a study of motorcycle-dominated pretimed intersections in Banda Aceh estimated PCU values of 0.24 for motorcycles and 1.00 for passenger cars [7]. The difference reflects the dependence of PCU values on local traffic and approach conditions. These reference categories are not a direct one-to-one mapping to all eight ARGUS detector classes. ARGUS therefore retains a separate set of operational weights, listed in Table 3.1, for its software simulation.
 
-The weighted traffic score for approach \(i\) is:
+The weighted traffic score for approach $$i$$ is:
 
-\[
+$$
 W_i=\sum_{c=1}^{C}N_{i,c}w_c
-\]
+$$
 
-where \(N_{i,c}\) is the detected count of vehicle class \(c\) on approach \(i\), and \(w_c\) is the configured class weight. The result is an estimate based on detected counts and assigned weights, not a direct measurement of queue length or traffic density [3, 4].
+where $$N_{i,c}$$ is the detected count of vehicle class $$c$$ on approach $$i$$, and $$w_c$$ is the configured class weight. The result is an estimate based on detected counts and assigned weights, not a direct measurement of queue length or traffic density [3, 4].
 
 ### 2.1.2 Computer Vision
 
@@ -117,27 +118,27 @@ The ARGUS audio subsystem uses pretrained YAMNet to extract 1,024-dimensional au
 
 Traffic-signal control algorithms translate traffic observations into signal-timing decisions. Fixed-time control uses predetermined timing plans, whereas adaptive control adjusts timing according to observed demand [2–5, 14]. Emergency-vehicle preemption also requires a controlled transition between signal phases rather than an immediate change of right-of-way [23, 24].
 
-In ARGUS, the four approach scores \(W_i\) are calculated using the vehicle counts and operational weights defined in Section 2.1.1. The simulator allocates a total green-time budget of 120 seconds. Each approach first receives the configured minimum of 10 seconds; the remaining 80 seconds are distributed in proportion to the approach scores. If an approach reaches the 40-second maximum, it is removed from the active distribution and its remaining share is redistributed among the other approaches. When all scores are zero, the remaining time is divided equally. The resulting allocation satisfies:
+In ARGUS, the four approach scores $$W_i$$ are calculated using the vehicle counts and operational weights defined in Section 2.1.1. The simulator allocates a total green-time budget of 120 seconds. Each approach first receives the configured minimum of 10 seconds; the remaining 80 seconds are distributed in proportion to the approach scores. If an approach reaches the 40-second maximum, it is removed from the active distribution and its remaining share is redistributed among the other approaches. When all scores are zero, the remaining time is divided equally. The resulting allocation satisfies:
 
-\[
+$$
 \sum_{i=1}^{4}G_i=120,\qquad 10\leq G_i\leq40
-\]
+$$
 
 This bounded redistribution is implemented as a weighted water-filling procedure, followed by integer rounding while preserving the total allocation.
 
 Each of the four approach phases is followed by a 3-second yellow interval and a 1-second all-red interval. Thus, the nominal duration of one complete normal rotation is:
 
-\[
+$$
 T_{\mathrm{rotasi}}=120+4(3+1)=136\text{ seconds}
-\]
+$$
 
 This value describes the configured normal four-approach rotation; emergency preemption or manual intervention can change the elapsed duration.
 
 Emergency priority is requested only when the visual emergency confidence and aggregate audio emergency score both exceed 0.65 on the same approach:
 
-\[
+$$
 E_i=(V_i>0.65)\land(A_i>0.65)
-\]
+$$
 
 The comparison is strict. A confirmed request sets that approach as the next target unless a manual override is active; the yellow and all-red clearance intervals are retained. The thresholds are software parameters, not field-calibrated safety settings.
 
@@ -203,9 +204,9 @@ The audio classifier is implemented in GUI/audio_siren.py and uses pretrained YA
 
 The emergency audio score is calculated as:
 
-\[
+$$
 A_i=P(\text{ambulance})+P(\text{firetruck})+P(\text{police})
-\]
+$$
 
 The classifier scores are model outputs and are not claimed to be independently calibrated probabilities. The video playback can be muted while audio analysis continues. The analysed audio is associated with the approach assigned to the selected local video.
 
@@ -228,9 +229,9 @@ The PCU categories in Table 2.1 provide the theoretical reference. ARGUS applies
 
 For each approach, the traffic score is calculated as:
 
-\[
+$$
 W_i=\sum_{c=1}^{8}N_{i,c}w_c
-\]
+$$
 
 The allocation begins with the minimum green time for each approach. The remaining time is distributed according to the active approach weights. If an approach reaches the maximum green time, it is capped and removed from the active distribution; the remaining allocation is then redistributed. If all active weights are zero, the remaining time is divided equally. Integer rounding uses the largest-remainder method so that the four green durations total exactly 120 seconds while remaining within the 10–40-second limits.
 
@@ -244,9 +245,9 @@ The visual pipeline supplies vehicle counts and visual emergency confidence for 
 
 The emergency-verification function confirms an approach only when both conditions are met:
 
-\[
+$$
 V_i>0.65\quad\text{and}\quad A_i>0.65
-\]
+$$
 
 The confirmed approach is requested as the next green phase unless a manual override is active. Signal transitions follow the sequence green → yellow → all-red → green; emergency priority does not bypass the clearance intervals. The GUI and detection processes operate through separate processing threads so that video and audio processing do not block the interface. All signal operations remain within the software simulation.
 
@@ -270,17 +271,17 @@ Prepare positive and negative cases for ambulance, fire-engine, and police-vehic
 
 Record the phase sequence and duration during normal operation and after an emergency-priority request. In a normal rotation, the configured duration is 120 seconds of green allocation plus four yellow intervals of 3 seconds and four all-red intervals of 1 second:
 
-\[
+$$
 T_{\mathrm{rotasi}}=120+4(3)+4(1)=136\text{ seconds}
-\]
+$$
 
 The code also calculates an adjusted approach score for selecting among simultaneously confirmed emergency candidates:
 
-\[
+$$
 S_i=W_i+0.01\,t_i
-\]
+$$
 
-where \(t_i\) is the elapsed time since that approach last received green. This term is used in candidate ranking; it is not an algorithm that restores missed green time or proves that traffic queues return to equilibrium. Record the selected approach and verify that the yellow and all-red intervals are retained.
+where $$t_i$$ is the elapsed time since that approach last received green. This term is used in candidate ranking; it is not an algorithm that restores missed green time or proves that traffic queues return to equilibrium. Record the selected approach and verify that the yellow and all-red intervals are retained.
 
 ### 3.4.5 Environmental Robustness
 
