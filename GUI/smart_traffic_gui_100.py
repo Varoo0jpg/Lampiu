@@ -913,19 +913,19 @@ class TrafficGUI(ctk.CTk):
 
         ctk.CTkLabel(
             f_suara1,
-            text="AUDIO CONFIDENCE",
+            text="SKOR AUDIO DARURAT",
             font=("Arial", 12, "bold"),
             text_color="#5dade2",
         ).pack(pady=(8, 1))
         ctk.CTkLabel(
-            f_suara1,            text="Skor indikasi sirene per lajur",
+            f_suara1,            text="Skor agregat kelas kendaraan darurat per lajur",
             font=("Arial", 9),
             text_color="#aab7c4",
         ).pack(pady=(0, 4))
 
         # Nilai dimulai sebagai None. Persentase baru muncul setelah modul audio
         # mengirim hasil agar GUI tidak menampilkan angka confidence palsu.
-        self.audio_confidence_values = {l: None for l in DAFTAR_LAJUR}
+        self.audio_emergency_scores = {l: None for l in DAFTAR_LAJUR}
         self.audio_confidence_widgets = {}
         for lajur in DAFTAR_LAJUR:
             baris = ctk.CTkFrame(f_suara1, fg_color="transparent")
@@ -1572,7 +1572,7 @@ class TrafficGUI(ctk.CTk):
         )
         # Pemetaan mengikuti lajur tempat video lokal dipilih pada launcher.
         # Audio tetap bersifat observasi dan tidak mengubah fase simulasi.
-        self.perbarui_confidence_audio({
+        self.perbarui_skor_audio_darurat({
             nama_lajur: (emergency if nama_lajur == lajur else None)
             for nama_lajur in DAFTAR_LAJUR
         })
@@ -1590,11 +1590,11 @@ class TrafficGUI(ctk.CTk):
             return
 
         probabilities = result["probabilities"]
-        confidence = float(result["emergency_score"])
+        emergency_score = float(result["emergency_score"])
         predicted = result["predicted_class"]
         status = (
             "INDIKASI AUDIO DARURAT"
-            if confidence >= AMBANG_AUDIO_DARURAT
+            if emergency_score >= AMBANG_AUDIO_DARURAT
             else "Indikasi audio darurat rendah"
         )
         warna = "#e67e22" if confidence >= AMBANG_AUDIO_DARURAT else "#aab7c4"
@@ -1613,7 +1613,7 @@ class TrafficGUI(ctk.CTk):
     # -----------------------------------------------------------
     # PEMBARUAN AUDIO CONFIDENCE
     # -----------------------------------------------------------
-    def perbarui_confidence_audio(self, hasil):
+    def perbarui_skor_audio_darurat(self, hasil):
         """
         Memperbarui panel audio confidence dari hasil modul deteksi sirene.
 
@@ -1631,7 +1631,7 @@ class TrafficGUI(ctk.CTk):
             widget = self.audio_confidence_widgets[lajur]
 
             if nilai is None:
-                self.audio_confidence_values[lajur] = None
+                self.audio_emergency_scores[lajur] = None
                 widget["progress"].set(0)
                 widget["persen"].configure(text="--%", text_color="#aab7c4")
                 continue
@@ -1648,7 +1648,7 @@ class TrafficGUI(ctk.CTk):
                     f"Confidence audio untuk lajur {lajur} di luar rentang 0.0 sampai 1.0"
                 )
 
-            self.audio_confidence_values[lajur] = confidence
+            self.audio_emergency_scores[lajur] = confidence
             widget["progress"].set(confidence)
             widget["persen"].configure(
                 text=f"{confidence * 100:.0f}%",
@@ -1698,7 +1698,7 @@ class TrafficGUI(ctk.CTk):
         aktif, gagal = [], []
         for lajur, nilai in hasil.items():
             widget = self.audio_confidence_widgets[lajur]
-            self.audio_confidence_values[lajur] = nilai
+            self.audio_emergency_scores[lajur] = nilai
             if nilai is None:
                 widget["progress"].set(0)
                 widget["persen"].configure(text="--%", text_color="#aab7c4")
@@ -1871,7 +1871,7 @@ class TrafficGUI(ctk.CTk):
     def emergency_dual_confirmed(self, lajur):
         """Konfirmasi AND: confidence YOLO darurat dan skor audio harus sama-sama lolos."""
         visual = self.confidence_visual_darurat.get(lajur, 0.0) > AMBANG_VISUAL_DARURAT
-        audio_value = self.audio_confidence_values.get(lajur)
+        audio_value = self.audio_emergency_scores.get(lajur)
         audio = audio_value is not None and audio_value > AMBANG_AUDIO_DARURAT
         return visual and audio
 
@@ -1881,7 +1881,7 @@ class TrafficGUI(ctk.CTk):
             return None
         return max(kandidat, key=lambda l: (
             self.confidence_visual_darurat.get(l, 0.0),
-            self.audio_confidence_values.get(l, 0.0),
+            self.audio_emergency_scores.get(l, 0.0),
             self.skor_lajur_disesuaikan(l)        ))
 
     def pilih_lajur_berikut(self):
