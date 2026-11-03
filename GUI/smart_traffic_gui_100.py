@@ -907,7 +907,7 @@ class TrafficGUI(ctk.CTk):
 
     def bangun_grid_simulasi_kanan(self):
         """Membangun penempatan layout grid 4 kamera dan grafik suara."""
-        # --- KOLOM 1: AUDIO CONFIDENCE & AREA GRAFIK ---
+        # --- KOLOM 1: SKOR AUDIO DARURAT & AREA GRAFIK ---
         f_suara1 = ctk.CTkFrame(self, fg_color=HEX_DARK_BG, border_width=1)
         f_suara1.grid(row=0, column=1, sticky="nsew", padx=4, pady=4)
 
@@ -1597,21 +1597,21 @@ class TrafficGUI(ctk.CTk):
             if emergency_score >= AMBANG_AUDIO_DARURAT
             else "Indikasi audio darurat rendah"
         )
-        warna = "#e67e22" if confidence >= AMBANG_AUDIO_DARURAT else "#aab7c4"
+        warna = "#e67e22" if emergency_score >= AMBANG_AUDIO_DARURAT else "#aab7c4"
         rincian = " | ".join(
             f"{nama}: {nilai * 100:.1f}%"
             for nama, nilai in probabilities.items()
         )
         self.lbl_hasil_audio_video.configure(
             text=(
-                f"{lajur}: {status} ({confidence * 100:.1f}%) | "
+                f"{lajur}: {status} ({emergency_score * 100:.1f}%) | "
                 f"Prediksi: {predicted}\n{rincian}"
             ),
             text_color=warna
         )
 
     # -----------------------------------------------------------
-    # PEMBARUAN AUDIO CONFIDENCE
+    # PEMBARUAN SKOR AUDIO DARURAT
     # -----------------------------------------------------------
     def perbarui_skor_audio_darurat(self, hasil):
         """
