@@ -1615,10 +1615,10 @@ class TrafficGUI(ctk.CTk):
     # -----------------------------------------------------------
     def perbarui_skor_audio_darurat(self, hasil):
         """
-        Memperbarui panel audio confidence dari hasil modul deteksi sirene.
+        Memperbarui skor agregat audio darurat per lajur.
 
         Args:
-            hasil: dictionary dengan nama lajur dan probabilitas 0.0 sampai 1.0.
+            hasil: dictionary dengan nama lajur dan skor agregat 0.0 sampai 1.0.
                    Gunakan None jika audio untuk lajur tersebut belum tersedia.
         Panggil metode ini pada thread GUI/Tkinter.
         """
@@ -1640,12 +1640,12 @@ class TrafficGUI(ctk.CTk):
                 score = float(nilai)
             except (TypeError, ValueError):
                 raise ValueError(
-                    f"Confidence audio untuk lajur {lajur} harus berupa angka 0.0 sampai 1.0 atau None"
+                    f"Skor audio darurat untuk lajur {lajur} harus berupa angka 0.0 sampai 1.0 atau None"
                 )
 
             if not 0.0 <= score <= 1.0:
                 raise ValueError(
-                    f"Confidence audio untuk lajur {lajur} di luar rentang 0.0 sampai 1.0"
+                    f"Skor audio darurat untuk lajur {lajur} di luar rentang 0.0 sampai 1.0"
                 )
 
             self.audio_emergency_scores[lajur] = score
