@@ -1637,24 +1637,24 @@ class TrafficGUI(ctk.CTk):
                 continue
 
             try:
-                confidence = float(nilai)
+                score = float(nilai)
             except (TypeError, ValueError):
                 raise ValueError(
                     f"Confidence audio untuk lajur {lajur} harus berupa angka 0.0 sampai 1.0 atau None"
                 )
 
-            if not 0.0 <= confidence <= 1.0:
+            if not 0.0 <= score <= 1.0:
                 raise ValueError(
                     f"Confidence audio untuk lajur {lajur} di luar rentang 0.0 sampai 1.0"
                 )
 
-            self.audio_emergency_scores[lajur] = confidence
-            widget["progress"].set(confidence)
+            self.audio_emergency_scores[lajur] = score
+            widget["progress"].set(score)
             widget["persen"].configure(
-                text=f"{confidence * 100:.0f}%",
+                text=f"{score * 100:.0f}%",
                 text_color="#ffffff",
             )
-            tersedia.append((lajur, confidence))
+            tersedia.append((lajur, score))
 
         if not tersedia:
             self.lbl_status_audio.configure(
