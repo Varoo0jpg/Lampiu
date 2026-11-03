@@ -78,7 +78,7 @@ Rumus skor lajur adalah `W = Σ(jumlah kelas × bobot kelas)`. Nilai di atas ada
 - Total alokasi waktu hijau untuk empat lajur adalah 120 detik per putaran alokasi.
 - Durasi hijau setiap lajur dibatasi 10–40 detik dan dibagi secara proporsional terhadap skor bobot kendaraan.
 - Bobot diambil sebagai satu snapshot untuk satu putaran alokasi.
-- Kuning berlangsung 3 detik dan all-red 1 detik pada setiap transisi. Karena clearance ditambahkan pada transisi, total waktu kalender untuk satu putaran lengkap **lebih panjang daripada 120 detik**.
+- Kuning berlangsung 3 detik dan all-red 1 detik pada setiap transisi. Satu putaran normal empat lajur memiliki empat transisi, sehingga total waktu kalendernya 120 + 4 × (3 + 1) = **136 detik**, sebelum memperhitungkan preemption atau jeda lain.
 - Jika skor semua lajur nol, waktu hijau dibagi rata.
 - Preemption darurat dapat mengubah target lajur berikutnya, tetapi tetap melewati kuning dan all-red. Urutan normal selain preemption tetap searah jarum jam.
 
