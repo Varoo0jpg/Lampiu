@@ -11,7 +11,7 @@ Gunakan Python 3.10 atau 3.11. Dari direktori root repository:
 ```bash
 python -m venv .venv
 # Windows:
-.venv\\Scripts\\activate
+.venv\Scripts\activate
 # Linux/macOS:
 source .venv/bin/activate
 
