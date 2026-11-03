@@ -1,12 +1,12 @@
 # ARGUS — Manuscript Revision Draft (I2ASPO, Maximum 13 Pages)
 
-> **Revision basis and scope**
+> **Note for Author — Revision basis and scope (not part of the manuscript)**
 >
 > This revision preserves the original manuscript's chapter order, section structure, research framing, and level of explanation wherever these remain consistent with the current ARGUS implementation. Changes are limited to correcting mismatches between the manuscript and the implemented system, aligning the number of research questions and objectives, and distinguishing literature-based PCU values from ARGUS configuration weights.
 >
 > The 13-page limit applies to the combined formatted manuscript from Chapter 1 through Chapter 5. The cover, table of contents, and bibliography are excluded according to the competition rules. This Markdown file does not have fixed pagination; verify the final count in the official I2ASPO template. Chapters 4–5 are not included in this working draft and must fit within the same 13-page body limit.
 >
-> **Chapter 2 page target: maximum 2 pages.** Page allocation for the remaining chapters must be planned within the overall 13-page limit; no separate allocation should be treated as additional page allowance.
+> **Note for Author — Page allocation:** Chapter 2 target: maximum 2 pages. Page allocation for the remaining chapters must be planned within the overall 13-page limit; no separate allocation should be treated as additional page allowance.
 
 ---
 
@@ -243,7 +243,7 @@ The confirmed approach is requested as the next green phase unless a manual over
 
 ## 3.4 Experimental Setup and Testing Scenarios
 
-The following procedures define the evaluation to be performed. They are not experimental findings; results should be reported only after the corresponding tests have been run and recorded.
+**Note for Author — Evaluation status (not part of the manuscript):** The following procedures define the evaluation to be performed. They are not experimental findings; results should be reported only after the corresponding tests have been run and recorded.
 
 ### 3.4.1 Simulation Environment and Configuration
 
@@ -297,9 +297,9 @@ Measure the yellow and all-red durations and compare them with the configured va
 
 ---
 
-# Author Checks Before Submission
+# Note for Author — Checks Before Submission
 
-This checklist is an internal editing note and should be removed from the submitted manuscript unless the competition template permits it.
+**Note: Internal editing checklist; do not include this section in the submitted manuscript unless the competition template explicitly permits it.**
 
 - Verify the source, definition, and year of the reported Yogyakarta vehicle-registration figure in the original reference [6].
 - Confirm the PCU categories and values in Table 2.1 against the exact cited standard and reference. The simplified values must not be presented as universal.
