@@ -154,21 +154,23 @@ ARGUS is characterized by computer-vision-based vehicle detection using YOLO26n 
 
 ## 3.2. System Architecture and Algorithm Design
 
-The software architecture of the ARGUS system integrates its core processing modules within a Python-based environment. Vehicle detection is performed using a trained YOLO26n model through the Ultralytics framework and OpenCV, targeting eight vehicle classes: ambulance, bus, car, fire engine, military vehicle, motorcycle, police car, and truck, with a confidence threshold of 0.15 and an NMS IoU threshold of 0.60. A five-frame median filter is applied to stabilize detection counts against short-term fluctuations. Meanwhile, audio classification uses pretrained YAMNet embeddings combined with a Logistic Regression classifier. It processes three-second mono audio segments extracted from the soundtrack of a user-selected local video at a 16 kHz sampling rate. The resulting emergency scores are used for dual-modal verification.
+The overall ARGUS architecture combines visual vehicle detection, audio classification, weighted traffic-demand estimation, and signal-control logic within a Python-based environment. The relationship between these modules is illustrated in Figure 3.1 in Section 3.3. Vehicle detection uses a trained YOLO26n model through the Ultralytics framework and OpenCV to identify eight vehicle classes: ambulance, bus, car, fire engine, military vehicle, motorcycle, police car, and truck. The model uses a confidence threshold of 0.15 and an NMS IoU threshold of 0.60, while a five-frame median filter stabilizes detection counts. Audio classification uses pretrained YAMNet embeddings and a Logistic Regression classifier to process three-second mono segments extracted from a user-selected local video's soundtrack at 16 kHz. The resulting emergency scores support dual-modal verification.
 
-Traffic-load estimation maps detected vehicle counts to operational class weights to calculate a cumulative weighted-demand score for each approach. These scores determine green-time allocation within a 120-second aggregate green-time budget, with each approach receiving 10–40 seconds or an equal share under zero demand. Signal transitions include a three-second yellow interval and a one-second all-red clearance phase. Emergency priority is requested when visual detection confidence and the aggregate audio emergency score both exceed 0.65 on the same approach. The CustomTkinter GUI displays video feeds, detection statistics, signal phases, countdown timers, and audio-confidence metrics, while supporting CSV snapshot exports for quantitative evaluation. ARGUS currently operates as a software-based simulation and is not connected to physical traffic-signal controllers.
+Traffic-load estimation applies operational class weights to detected vehicle counts to calculate a weighted-demand score for each approach. These scores determine green-time allocation within a 120-second aggregate green-time budget, with each approach receiving 10–40 seconds or an equal share under zero demand. Signal transitions include a three-second yellow interval and a one-second all-red clearance phase. Emergency priority is requested when visual detection confidence and the aggregate audio emergency score both exceed 0.65 on the same approach. The CustomTkinter GUI displays video feeds, detection statistics, signal phases, countdown timers, and audio-confidence metrics, and supports CSV snapshot exports for quantitative evaluation. ARGUS currently operates as a software-based simulation and is not connected to physical traffic-signal controllers.
 
 ## 3.3. Software Implementation and Module Integration
 
-**[Insert Figure 3.X — ARGUS System Architecture Diagram here.]**
+**Figure 3.1. ARGUS System Architecture Diagram**
+
+[Insert the ARGUS system architecture diagram here. The diagram should show the visual and audio input pipelines, YOLO26n and YAMNet–Logistic Regression processing, weighted-demand estimation, dual-modal emergency verification, signal-control logic, and GUI/data-export outputs.]
 
 **1. Software Implementation**
 
-The ARGUS system is implemented in Python. Vehicle detection uses a trained YOLO26n model through Ultralytics and OpenCV to identify eight vehicle classes across the four approaches, with a confidence threshold of 0.15, an NMS IoU threshold of 0.60, and a five-frame median filter to stabilize detection counts. Audio classification uses pretrained YAMNet to generate 1,024-dimensional embeddings from three-second mono segments sampled at 16 kHz from a user-selected local video's soundtrack. A Logistic Regression classifier assigns the audio to four categories: ambulance, firetruck, police, and traffic. The emergency audio score combines the three emergency-category scores. Traffic demand is calculated by applying operational class weights to detected vehicle counts, and the resulting approach scores determine green-time allocation within the 120-second aggregate green-time budget, subject to the 10–40-second limits or equal allocation under zero demand. The CustomTkinter GUI displays camera feeds, vehicle counts, signal phases, countdown timers, and audio-confidence scores, and supports CSV snapshot exports.
+The ARGUS system is implemented in Python. Vehicle detection uses a trained YOLO26n model through Ultralytics and OpenCV to identify eight vehicle classes across the four approaches, with a confidence threshold of 0.15, an NMS IoU threshold of 0.60, and a five-frame median filter to stabilize detection counts. Audio classification uses pretrained YAMNet to generate 1,024-dimensional embeddings from three-second mono segments sampled at 16 kHz from a user-selected local video's soundtrack. A Logistic Regression classifier assigns the audio to four categories: ambulance, firetruck, police, and traffic. The aggregate emergency audio score combines the three emergency-category scores. Traffic demand is calculated by applying operational class weights to detected vehicle counts; the resulting approach scores determine green-time allocation within the 120-second aggregate green-time budget, subject to the 10–40-second limits or equal allocation under zero demand. The CustomTkinter GUI displays camera feeds, vehicle counts, signal phases, countdown timers, and audio-confidence scores, and supports CSV snapshot exports.
 
 **2. Module Integration**
 
-ARGUS integrates two processing pipelines: the visual pipeline uses YOLO26n to classify and count vehicles before transferring the results to traffic-load estimation, while the audio pipeline uses YAMNet and Logistic Regression to generate emergency-classification scores from video soundtracks. Both outputs are combined through dual-modal verification. Emergency priority is requested when visual emergency confidence and the aggregate audio emergency score both exceed 0.65 on the same approach. The controller maintains the three-second yellow and one-second all-red intervals before granting the next green phase; otherwise, it continues with traffic-load-based allocation. Separate execution threads handle camera processing and audio analysis to maintain GUI responsiveness. ARGUS currently operates as a software-based simulation and is not connected to physical traffic-signal controllers.
+ARGUS integrates two primary processing pipelines. The visual pipeline uses YOLO26n to classify and count vehicles before transferring the results to traffic-load estimation. The audio pipeline processes video soundtracks using YAMNet and Logistic Regression to generate emergency-classification scores. Both outputs are combined through dual-modal verification. Emergency priority is requested only when visual emergency confidence and the aggregate audio emergency score both exceed 0.65 on the same approach. The controller maintains the three-second yellow and one-second all-red intervals before granting the next green phase; otherwise, it continues with traffic-load-based allocation. Separate execution threads handle camera processing and audio analysis to maintain GUI responsiveness. Processing results are presented through the graphical interface, and system snapshots can be exported in CSV format for subsequent evaluation. ARGUS currently operates as a software-based simulation and is not connected to physical traffic-signal controllers.
 
 ## 3.4. Experimental Setup and Testing Scenarios
 
@@ -177,6 +179,10 @@ ARGUS integrates two processing pipelines: the visual pipeline uses YOLO26n to c
 The test environment represents four approaches: North, East, South, and West. For each test, record the video source assigned to each approach, computer specifications, operating system, Python and package versions, YOLO26n checkpoint, and GUI settings. For audio tests, also record the selected local video and its assigned approach.
 
 ### 3.4.2. Heterogeneous Traffic Density & PCU Weighting Protocol
+
+**Table 3.1. Operational Vehicle-Class Weights Used by ARGUS**
+
+[Insert the operational vehicle-class weight table used by the implemented controller. Retain the exact class names and weight values from the source code or original project documentation; do not infer missing values.]
 
 Prepare low-, medium-, and high-demand scenarios with known vehicle counts and different class compositions. Calculate the expected approach scores manually using Table 3.1, then compare them with the scores displayed by ARGUS. Record the four green durations and verify that each is between 10 and 40 seconds and that their sum is 120 seconds. Include an all-zero-demand scenario to verify equal allocation.
 
@@ -257,7 +263,9 @@ A zero deviation indicates that the measured interval matches its configured dur
 
 Hasil deteksi kendaraan dan metrik akurasi YOLO26n.
 
-**Reported overall validation metrics (available project results):**
+**Table 4.1. Overall YOLO26n Validation Metrics**
+
+[Reported overall validation metrics from the available project results.]
 
 | Metric | Result |
 |---|---:|
@@ -266,7 +274,9 @@ Hasil deteksi kendaraan dan metrik akurasi YOLO26n.
 | mAP@0.5 | 89.5% |
 | mAP@0.5:0.95 | 72.1% |
 
-**Reported per-class metrics:**
+**Table 4.2. Per-Class YOLO26n Validation Metrics**
+
+[Reported per-class validation metrics.]
 
 | Class | Precision | Recall | mAP@0.5 | mAP@0.5:0.95 |
 |---|---:|---:|---:|---:|
@@ -281,17 +291,23 @@ Hasil deteksi kendaraan dan metrik akurasi YOLO26n.
 
 These are the reported validation metrics. They should be interpreted with the dataset-annotation audit in mind, which identified empty-label images requiring visual review. An empty label is not automatically an annotation error, but possible missing annotations can affect the interpretation of validation results.
 
-**[Insert the original YOLO26n training-results plot and normalized confusion matrix here, if those figures are included in the source document.]**
+**Figure 4.1. YOLO26n Training Results**
+
+[Insert the original YOLO26n training-results plot here.]
+
+**Figure 4.2. Normalized Confusion Matrix**
+
+[Insert the normalized confusion matrix here.]
 
 ## 4.2. Traffic Control Evaluation
 
 The traffic control evaluation was conducted to examine how ARGUS distributes green-light duration among the four approaches based on their weighted traffic scores. The system allocates a total of 120 seconds of green time, with a minimum duration of 10 seconds and a maximum duration of 40 seconds for each approach.
 
-Based on the simulation results recorded in banyu4.csv, the green-time allocation for one normal cycle is presented in Table 4.1. **The 120 seconds refers to the aggregate green-time allocation, not the complete signal rotation. Including four 3-second yellow intervals and four 1-second all-red intervals, the nominal full normal rotation is 136 seconds.**
+Based on the simulation results recorded in banyu4.csv, the green-time allocation for one normal cycle is presented in Table 4.3. **The 120 seconds refers to the aggregate green-time allocation, not the complete signal rotation. Including four 3-second yellow intervals and four 1-second all-red intervals, the nominal full normal rotation is 136 seconds.**
 
-**Table 4.1. Green-Time Allocation for Each Approach**
+**Table 4.3. Green-Time Allocation for Each Approach**
 
-[Retain the original Table 4.1 from the DOCX here. Its table cells were not available in the extracted text.]
+[Retain the original green-time allocation table from the DOCX here. Its table cells were not available in the extracted text.]
 
 The results show that the total green-time allocation reaches 120 seconds. Each approach receives a duration within the configured minimum and maximum limits. The East approach receives the longest green duration of 38 seconds, while the South approach receives the shortest duration of 22 seconds.
 
@@ -390,7 +406,9 @@ The original chapter order, section order, research questions, objectives, main 
 
 | Original location | Change made | Reason |
 |---|---|---|
-| 3.2 and 3.3 | Kept Section 3.2 as a two-paragraph overview of the system architecture and algorithm; consolidated Section 3.3 into one subsection with the architecture-diagram placeholder and two labelled paragraphs (Software Implementation and Module Integration) | Preserves the requested original presentation while separating the high-level algorithm description from implementation and module data flow |\n| Abstract | Removed the statement that the manuscript has no completed experimental results; retained the original system description and clarified that it is a software simulation | The project has reported model-validation and software-timing results, but these do not establish field effectiveness |
+| 3.2 and 3.3 | Added a concise architecture overview in Section 3.2, retained one numbered architecture-diagram placeholder (Figure 3.1) in Section 3.3, and revised the two original text blocks under Software Implementation and Module Integration | Avoids duplicating the same diagram while preserving the single-subsection layout and the distinction between implementation and module data flow |
+| Tables and figures | Added sequential captions/placeholders for Table 3.1, Tables 4.1–4.3, and Figures 3.1 and 4.1–4.2 | Makes missing visual/table assets identifiable without inventing their contents |
+| Abstract | Removed the statement that the manuscript has no completed experimental results; retained the original system description and clarified that it is a software simulation | The project has reported model-validation and software-timing results, but these do not establish field effectiveness |
 | 1.1 Background | Replaced “exceeded 3.5 million registered units in 2025” with the BPS figure of 3,328,178 for 2024, published in the 2025 yearbook | Corrects the year and figure |
 | 1.1 Background | Replaced claims that ARGUS computes spatial occupancy and uses MFCC with weighted-demand scoring and YAMNet plus Logistic Regression | Aligns the description with the implemented method |
 | 1.1 Background and 1.4.2 | Removed unsupported claims of a Green Wave corridor, drastic delay reduction, and measured throughput improvement | The implementation is a four-approach software simulation, not coordinated multi-intersection control |
