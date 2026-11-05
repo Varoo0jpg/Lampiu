@@ -368,7 +368,7 @@ This section should report the actual visual detections, audio scores, dual-moda
 
 This section evaluates the signal sequence after an emergency-priority event and the return to normal traffic-load-based allocation. A complete recovery duration or traffic-equilibrium result should be reported only when the recovery interval has been explicitly defined and measured.
 
-**Table 4.3. Emergency Signal Recovery and Phase-Transition Timing (Conditional)**
+**Table 4.4. Emergency Signal Recovery and Phase-Transition Timing (Conditional)**
 
 [Insert verified emergency-event and post-emergency timing records only when the complete test log and measurement definitions are available.]
 
@@ -502,7 +502,7 @@ Kelebihan, kekurangan, dan keterbatasan Lampiu.
 - **Figure E.2. Empty-Label Training Samples** — [Insert `dataset_audit/empty_train.jpg`.]
 - **Figure E.3. Empty-Label Validation Samples** — [Insert `dataset_audit/empty_valid.jpg`.]
 - **Table E.1. Threshold Sweep Summary** — [Insert or summarize `threshold_sweep/threshold_summary.csv` if available.]
-- [Add class-specific contact sheets only when they support a specific annotation-audit discussion.]
+- **Figure E.4. Class-Specific Dataset Contact Sheets (Optional)** — [Insert only when they support a specific annotation-audit discussion.]
 
 *Source: Dataset audit artifacts. The previously recorded audit identified 1,128 empty-label images (923 train and 205 valid); the set is mixed and must not be treated as entirely correct or entirely incorrect without visual verification.*
 
@@ -514,7 +514,7 @@ Kelebihan, kekurangan, dan keterbatasan Lampiu.
 - **Figure F.4. Frame 0172 — Ambulance Detection Example** — [Insert `frame_0172.jpg`.]
 - **Figure F.5. Frame 0175 — Visual Verification** — [Insert `frame_0175.jpg`.]
 - **Figure F.6. Frame 0278 — Visual Verification** — [Insert `frame_0278.jpg`.]
-- [Add threshold-audit examples from `val_conf025` or `val_conf001` only when their thresholds and evaluation context are stated.]
+- **Figure F.7. Threshold-Audit Examples (Optional)** — [Insert examples from `val_conf025` or `val_conf001` only when their thresholds and evaluation context are stated.]
 
 *Source: Project frame-verification and error-audit artifacts. Label each example as a correct detection, false positive, false negative, or ambiguous case according to the actual inspection.*
 
@@ -549,7 +549,7 @@ The original chapter order, section order, research questions, objectives, main 
 |---|---|---|
 | 3.2 | Consolidated the architecture diagram and system summary into one subchapter; removed the separate Input and Process subsections | Reduces repetition and preserves the main architecture, input, processing, timing, emergency-verification, GUI, and logging information |
 | 3.3 | Consolidated implementation details into Software Implementation and Module Integration, added Figure 3.2 for module integration, and retained Figure 3.3 for the dual-modal verification flowchart | Reduces nested subsections while retaining the implementation and data-flow explanation |
-| Tables and figures | Retained Table 3.1 for experimental configuration, Table D.1 for operational vehicle weights, Tables 4.1–4.3 for detection, allocation, and conditional recovery results, and Figures 3.1–3.3 and 4.1–4.3 for architecture, integration, verification, and result visuals | Applies sequential numbering and descriptive captions to the figure/table placeholders without fabricating missing data or images |
+| Tables and figures | Retained Table 3.1 for experimental configuration, Table D.1 for operational vehicle weights, Tables 4.1–4.4 for detection, allocation, conditional emergency-verification, and recovery results, and Figures 3.1–3.3 and 4.1–4.3 for architecture, integration, verification, and result visuals | Applies sequential numbering and descriptive captions to the figure/table placeholders without fabricating missing data or images |
 | Abstract | Removed the statement that the manuscript has no completed experimental results; retained the original system description and clarified that it is a software simulation | The project has reported model-validation and software-timing results, but these do not establish field effectiveness |
 | 1.1 Background | Replaced “exceeded 3.5 million registered units in 2025” with the BPS figure of 3,328,178 for 2024, published in the 2025 yearbook | Corrects the year and figure |
 | 1.1 Background | Replaced claims that ARGUS computes spatial occupancy and uses MFCC with weighted-demand scoring and YAMNet plus Logistic Regression | Aligns the description with the implemented method |
