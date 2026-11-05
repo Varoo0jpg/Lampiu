@@ -938,6 +938,7 @@ class TrafficGUI(ctk.CTk):
         # Nilai dimulai sebagai None. Persentase baru muncul setelah modul audio
         # mengirim hasil agar GUI tidak menampilkan angka confidence palsu.
         self.audio_emergency_scores = {l: None for l in DAFTAR_LAJUR}
+        self.audio_score_method_by_lane = {l: "unavailable" for l in DAFTAR_LAJUR}
         self.audio_confidence_widgets = {}
         for lajur in DAFTAR_LAJUR:
             baris = ctk.CTkFrame(f_suara1, fg_color="transparent")
@@ -1332,7 +1333,10 @@ class TrafficGUI(ctk.CTk):
                 and_confirmed = bool(visual_pass and audio_pass)
                 emergency_lane = self.lajur_darurat_terkonfirmasi()
                 preemption_active = bool(
-                    self.simulasi_aktif and self.lajur_terpaksa == lajur
+                    self.simulasi_aktif and (
+                        self.lajur_terpaksa == lajur
+                        or (self.lajur_aktif == lajur and self.fase_saat_ini == "HIJAU" and and_confirmed)
+                    )
                 )
                 state_now = (visual_pass, audio_pass, and_confirmed)
                 previous_state = self.research_last_emergency_state.get(lajur)
@@ -1386,7 +1390,7 @@ class TrafficGUI(ctk.CTk):
                     "preemption_active": int(preemption_active),
                     "event_type": event_type,
                     "decision_reason": decision_reason,
-                    "audio_score_method": "heuristic_siren_score",
+                    "audio_score_method": self.audio_score_method_by_lane.get(lajur, "unavailable"),
                     "model_file": os.path.basename(MODEL_PATH),
                     "yolo_conf_threshold": CONF,
                     "yolo_iou_threshold": IOU,
@@ -1657,6 +1661,7 @@ class TrafficGUI(ctk.CTk):
             nama_lajur: (emergency if nama_lajur == lajur else None)
             for nama_lajur in DAFTAR_LAJUR
         })
+        self.audio_score_method_by_lane[lajur] = "YAMNet"
 
     def _hasil_analisis_audio(self, lajur, result, error):
         if error:
@@ -1713,6 +1718,7 @@ class TrafficGUI(ctk.CTk):
 
             if nilai is None:
                 self.audio_emergency_scores[lajur] = None
+                self.audio_score_method_by_lane[lajur] = "unavailable"
                 widget["progress"].set(0)
                 widget["persen"].configure(text="--%", text_color="#aab7c4")
                 continue
@@ -1730,6 +1736,7 @@ class TrafficGUI(ctk.CTk):
                 )
 
             self.audio_emergency_scores[lajur] = score
+            self.audio_score_method_by_lane[lajur] = "external_audio_score"
             widget["progress"].set(score)
             widget["persen"].configure(
                 text=f"{score * 100:.0f}%",
@@ -1780,6 +1787,9 @@ class TrafficGUI(ctk.CTk):
         for lajur, nilai in hasil.items():
             widget = self.audio_confidence_widgets[lajur]
             self.audio_emergency_scores[lajur] = nilai
+            self.audio_score_method_by_lane[lajur] = (
+                "heuristic_siren_score" if nilai is not None else "unavailable"
+            )
             if nilai is None:
                 widget["progress"].set(0)
                 widget["persen"].configure(text="--%", text_color="#aab7c4")
