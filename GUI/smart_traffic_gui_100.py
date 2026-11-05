@@ -2227,6 +2227,17 @@ class TrafficGUI(ctk.CTk):
             # Jangan melompati clearance: preemption dimulai melalui kuning,
             # kemudian ALL_RED, baru pendekat darurat memperoleh hijau.
             if self.fase_saat_ini == "HIJAU":
+                elapsed = (
+                    round(time.monotonic() - self.research_phase_started_monotonic, 3)
+                    if self.research_phase_started_monotonic is not None else ""
+                )
+                self.log_system_event(
+                    "PHASE_TRANSITION", lane=self.lajur_aktif,
+                    from_phase="HIJAU", to_phase="KUNING",
+                    duration_seconds=elapsed,
+                    expected_seconds=self.research_green_allocation.get(self.lajur_aktif, "")
+                )
+                self.research_phase_started_monotonic = time.monotonic()
                 self.fase_saat_ini = "KUNING"
                 self.hitung_mundur = FASE_KUNING
 
@@ -2327,6 +2338,17 @@ class TrafficGUI(ctk.CTk):
         self.lajur_terpaksa = lajur_tujuan
         self.override_manual_aktif = True
         if self.fase_saat_ini == "HIJAU":
+            elapsed = (
+                round(time.monotonic() - self.research_phase_started_monotonic, 3)
+                if self.research_phase_started_monotonic is not None else ""
+            )
+            self.log_system_event(
+                "MANUAL_PHASE_TRANSITION", lane=self.lajur_aktif,
+                from_phase="HIJAU", to_phase="KUNING",
+                duration_seconds=elapsed,
+                expected_seconds=self.research_green_allocation.get(self.lajur_aktif, "")
+            )
+            self.research_phase_started_monotonic = time.monotonic()
             self.fase_saat_ini = "KUNING"
             self.hitung_mundur = FASE_KUNING
 
