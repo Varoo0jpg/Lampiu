@@ -1100,10 +1100,27 @@ class TrafficGUI(ctk.CTk):
         self._video_ui_after_id = self.after(250, self.perbarui_kontrol_video)
 
     def toggle_video_pause(self):
+        # Saat dijeda, samakan titik lanjut audio dengan posisi frame video
+        # terakhir, lalu hentikan perangkat audio tanpa menunggu jendela 3 detik selesai.
         with VIDEO_CONTROL["lock"]:
             VIDEO_CONTROL["paused"] = not VIDEO_CONTROL["paused"]
+            paused = VIDEO_CONTROL["paused"]
+            if paused:
+                VIDEO_CONTROL["seek_seconds"] = max(0.0, VIDEO_CONTROL["position"])
+                VIDEO_CONTROL["seek_serial"] += 1
+        if paused:
+            self._hentikan_audio_saat_video_dijeda()
         if self.audio_playback_thread is None:
             self.mulai_audio_video_lokal()
+
+    def _hentikan_audio_saat_video_dijeda(self):
+        """Hentikan soundtrack seketika ketika kontrol video diubah ke Jeda."""
+        try:
+            import sounddevice as sd
+            sd.stop()
+        except Exception as exc:
+            # Kegagalan menghentikan output audio tidak boleh mematikan GUI.
+            print(f"[!] Audio tidak dapat dihentikan saat video dijeda: {exc}")
 
     def toggle_video_mute(self):
         with VIDEO_CONTROL["lock"]:
@@ -1709,7 +1726,30 @@ class TrafficGUI(ctk.CTk):
                 with VIDEO_CONTROL["lock"]:
                     muted = bool(VIDEO_CONTROL["muted"])
                 if not muted:
-                    sd.play(chunk, samplerate=playback_rate, blocking=True)
+                    try:
+                        sd.play(chunk, samplerate=playback_rate, blocking=True)
+                    except Exception:
+                        # sd.stop() dari tombol Jeda dapat menginterupsi pemutaran.
+                        # Abaikan hanya jika memang ada jeda/seek/stop yang diminta.
+                        with VIDEO_CONTROL["lock"]:
+                            interrupted = (
+                                VIDEO_CONTROL["paused"]
+                                or VIDEO_CONTROL["seek_serial"] != seen_seek
+                            )
+                        if interrupted or self.audio_playback_stop.is_set():
+                            continue
+                        raise
+
+                    # Jangan analisis atau memajukan cursor ke ujung chunk lama jika
+                    # pemutaran baru saja dihentikan oleh tombol Jeda atau Seek.
+                    with VIDEO_CONTROL["lock"]:
+                        interrupted = (
+                            VIDEO_CONTROL["paused"]
+                            or VIDEO_CONTROL["seek_serial"] != seen_seek
+                        )
+                    if interrupted:
+                        continue
+
                 mono = chunk.mean(axis=1) if chunk.ndim == 2 else chunk
                 mono16 = librosa.resample(
                     np.asarray(mono, dtype=np.float32), orig_sr=playback_rate, target_sr=16000
