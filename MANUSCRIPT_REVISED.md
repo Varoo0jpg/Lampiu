@@ -84,6 +84,8 @@ Traffic flow at signalized intersections is described by volume, speed, and dens
 
 **Table 2.1. Passenger Car Unit (PCU) equivalent factors for heterogeneous traffic**
 
+*Source: PCU references cited in the original manuscript. The exact MKJI edition supporting the simplified values is not yet verified.*
+
 | Vehicle classification | PCU value | Reference standard stated in the original manuscript |
 |---|---:|---|
 | Motorcycle (MC) | 0.25 / 0.33 | MKJI / Sugiarto et al. [7] (simplified) |
@@ -218,7 +220,7 @@ The CustomTkinter interface presents four camera panels, vehicle-detection infor
 
 A complete screenshot of the final GUI should be placed in Appendix A. Additional screenshots should be included only when they explain a distinct interface function. The GUI contains an Auto/Manual selector, but the controller logic must not be described as implementing two operational modes unless the mode variable is confirmed to be consumed by the final controller code.
 
-## 3.3.2. Module Integration
+### 3.3.2. Module Integration
 
 ARGUS integrates two primary processing pipelines. The visual pipeline transfers YOLO26n vehicle classifications and counts to the traffic-load estimation module. The audio pipeline transfers YAMNet embeddings and Logistic Regression classification scores to the emergency-verification mechanism. The two outputs are associated with the same approach before emergency priority is requested.
 
@@ -252,10 +254,6 @@ The test environment represents four approaches: North, East, South, and West. R
 *Source: ARGUS configuration and experiment records. Values marked for verification must be checked against the final code and experiment logs before submission.*
 
 ### 3.4.2. Heterogeneous Traffic Density & PCU Weighting Protocol
-
-**Table 3.1. Operational Vehicle-Class Weights Used by ARGUS**
-
-[Insert the operational vehicle-class weight table used by the implemented controller. Retain the exact class names and weight values from the source code or original project documentation; do not infer missing values.]
 
 Prepare low-, medium-, and high-demand scenarios with known vehicle counts and different class compositions. Calculate the expected approach scores manually using Table 3.2, then compare them with the scores displayed by ARGUS. Record the four green durations and verify that each is between 10 and 40 seconds and that their sum is 120 seconds. Include an all-zero-demand scenario to verify equal allocation.
 
@@ -364,7 +362,7 @@ Figure 4.1 presents the normalized confusion matrix. It must be verified as orig
 
 The traffic control evaluation was conducted to examine how ARGUS distributes green-light duration among the four approaches based on their weighted traffic scores. The system allocates a total of 120 seconds of green time, with a minimum duration of 10 seconds and a maximum duration of 40 seconds for each approach.
 
-Based on the simulation results recorded in banyu4.csv, the green-time allocation for one normal cycle is presented in Table 4.3. **The 120 seconds refers to the aggregate green-time allocation, not the complete signal rotation. Including four 3-second yellow intervals and four 1-second all-red intervals, the nominal full normal rotation is 136 seconds.**
+Based on the simulation results recorded in banyu4.csv, the green-time allocation for one normal cycle is presented in Table 4.2. **The 120 seconds refers to the aggregate green-time allocation, not the complete signal rotation. Including four 3-second yellow intervals and four 1-second all-red intervals, the nominal full normal rotation is 136 seconds.**
 
 **Table 4.2. Green-Time Allocation for Each Approach**
 
