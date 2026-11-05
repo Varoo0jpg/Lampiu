@@ -316,7 +316,7 @@ These values are simulator configuration weights used to calculate weighted appr
 - The active working draft contains Chapters 1–3 only; do not infer or recreate Chapters 4–5 from the old comparison manuscript. Add the current approved Chapters 4–5 before final submission.
 - The in-text citation [28] is present in the PCU discussion, but the active working draft does not contain its bibliography. Verify and include the exact supporting MKJI/PCU reference; do not renumber citations until the complete reference list is restored.
 - Confirm the PCU categories and values in Table 2.1 against the exact cited standard and reference. The simplified values must not be presented as universal.
-- Confirm that Table 3.1 matches the operational weights in the current software.
+- Confirm that Table D.1 matches the operational weights in the current software.
 - Verify the YOLO26n checkpoint, training dataset, data split, and independent test metrics before reporting model performance.
 - Verify the audio dataset, class counts, train/validation/test split, and original training outputs before reporting any classifier metrics.
 - Confirm that the test setup reflects the current local-video soundtrack selection behaviour.
