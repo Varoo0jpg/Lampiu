@@ -154,15 +154,15 @@ ARGUS is characterized by computer-vision-based vehicle detection using YOLO26n 
 
 ## 3.2. System Architecture and Algorithm Design
 
-The overall ARGUS architecture combines visual vehicle detection, audio classification, weighted traffic-demand estimation, and signal-control logic within a Python-based environment. The relationship between these modules is illustrated in Figure 3.1 in Section 3.3. Vehicle detection uses a trained YOLO26n model through the Ultralytics framework and OpenCV to identify eight vehicle classes: ambulance, bus, car, fire engine, military vehicle, motorcycle, police car, and truck. The model uses a confidence threshold of 0.15 and an NMS IoU threshold of 0.60, while a five-frame median filter stabilizes detection counts. Audio classification uses pretrained YAMNet embeddings and a Logistic Regression classifier to process three-second mono segments extracted from a user-selected local video's soundtrack at 16 kHz. The resulting emergency scores support dual-modal verification.
+**Figure 3.1. ARGUS System Architecture Diagram**
+
+[Insert the ARGUS system architecture diagram here. The diagram should show the visual and audio input pipelines, YOLO26n and YAMNet–Logistic Regression processing, weighted-demand estimation, dual-modal emergency verification, signal-control logic, and GUI/data-export outputs.]
+
+The overall ARGUS architecture combines visual vehicle detection, audio classification, weighted traffic-demand estimation, and signal-control logic within a Python-based environment, as illustrated in Figure 3.1. Vehicle detection uses a trained YOLO26n model through the Ultralytics framework and OpenCV to identify eight vehicle classes: ambulance, bus, car, fire engine, military vehicle, motorcycle, police car, and truck. The model uses a confidence threshold of 0.15 and an NMS IoU threshold of 0.60, while a five-frame median filter stabilizes detection counts. Audio classification uses pretrained YAMNet embeddings and a Logistic Regression classifier to process three-second mono segments extracted from a user-selected local video's soundtrack at 16 kHz. The resulting emergency scores support dual-modal verification.
 
 Traffic-load estimation applies operational class weights to detected vehicle counts to calculate a weighted-demand score for each approach. These scores determine green-time allocation within a 120-second aggregate green-time budget, with each approach receiving 10–40 seconds or an equal share under zero demand. Signal transitions include a three-second yellow interval and a one-second all-red clearance phase. Emergency priority is requested when visual detection confidence and the aggregate audio emergency score both exceed 0.65 on the same approach. The CustomTkinter GUI displays video feeds, detection statistics, signal phases, countdown timers, and audio-confidence metrics, and supports CSV snapshot exports for quantitative evaluation. ARGUS currently operates as a software-based simulation and is not connected to physical traffic-signal controllers.
 
 ## 3.3. Software Implementation and Module Integration
-
-**Figure 3.1. ARGUS System Architecture Diagram**
-
-[Insert the ARGUS system architecture diagram here. The diagram should show the visual and audio input pipelines, YOLO26n and YAMNet–Logistic Regression processing, weighted-demand estimation, dual-modal emergency verification, signal-control logic, and GUI/data-export outputs.]
 
 **1. Software Implementation**
 
@@ -406,7 +406,7 @@ The original chapter order, section order, research questions, objectives, main 
 
 | Original location | Change made | Reason |
 |---|---|---|
-| 3.2 and 3.3 | Added a concise architecture overview in Section 3.2, retained one numbered architecture-diagram placeholder (Figure 3.1) in Section 3.3, and revised the two original text blocks under Software Implementation and Module Integration | Avoids duplicating the same diagram while preserving the single-subsection layout and the distinction between implementation and module data flow |
+| 3.2 and 3.3 | Placed the architecture diagram and its caption (Figure 3.1) in Section 3.2, followed by the two-paragraph architecture summary; retained the two original text blocks in Section 3.3 under Software Implementation and Module Integration | Keeps the architecture figure with the architecture-design subsection and separates it from the implementation and module-integration descriptions |
 | Tables and figures | Added sequential captions/placeholders for Table 3.1, Tables 4.1–4.3, and Figures 3.1 and 4.1–4.2 | Makes missing visual/table assets identifiable without inventing their contents |
 | Abstract | Removed the statement that the manuscript has no completed experimental results; retained the original system description and clarified that it is a software simulation | The project has reported model-validation and software-timing results, but these do not establish field effectiveness |
 | 1.1 Background | Replaced “exceeded 3.5 million registered units in 2025” with the BPS figure of 3,328,178 for 2024, published in the 2025 yearbook | Corrects the year and figure |
