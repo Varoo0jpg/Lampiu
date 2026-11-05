@@ -750,6 +750,17 @@ class TrafficGUI(ctk.CTk):
         self.research_sample_interval_ms = 1000
         self.research_last_emergency_state = {l: None for l in DAFTAR_LAJUR}
         self.research_session_id = ""
+        # Event-level telemetry for Chapter 4.4.
+        self.research_event_records = []
+        self.research_cycle_id = 0
+        self.research_cycle_lanes_seen = set()
+        self.research_recovery_lanes_seen = set()
+        self.research_recovery_pending = False
+        self.research_recovery_started_monotonic = None
+        self.research_priority_lane = None
+        self.research_last_preemption_candidate = None
+        self.research_green_allocation = {}
+        self.research_phase_started_monotonic = None
 
         # Konfigurasi Master Grid Layout
         self.grid_columnconfigure(0, weight=0, minsize=360)  # Kolom Kontrol Kiri
@@ -1231,6 +1242,10 @@ class TrafficGUI(ctk.CTk):
             command=self.export_research_summary
         ).pack(side="left", padx=2)
         ctk.CTkButton(
+            controls, text="CSV Events 4.4", width=112, height=23,
+            command=self.export_research_events
+        ).pack(side="left", padx=2)
+        ctk.CTkButton(
             controls, text="Reset", width=52, height=23,
             fg_color="#7f3b3b", hover_color="#642d2d",
             command=self.clear_research_records
@@ -1290,6 +1305,43 @@ class TrafficGUI(ctk.CTk):
         self.research_tree.grid(row=0, column=0, sticky="nsew")
         yscroll.grid(row=0, column=1, sticky="ns")
         xscroll.grid(row=1, column=0, sticky="ew")
+
+    def log_system_event(self, event_type, lane="", from_phase="", to_phase="", duration_seconds="", expected_seconds="", details=""):
+        """Simpan event aktual untuk evaluasi transisi, siklus, pemulihan, dan alokasi."""
+        if not self.research_recording:
+            return
+        now = datetime.now().astimezone()
+        self.research_event_records.append({
+            "timestamp": now.isoformat(timespec="milliseconds"),
+            "recording_session_id": self.research_session_id,
+            "cycle_id": self.research_cycle_id,
+            "event_type": event_type,
+            "lane": lane,
+            "from_phase": from_phase,
+            "to_phase": to_phase,
+            "duration_seconds": duration_seconds,
+            "expected_seconds": expected_seconds,
+            "recovery_elapsed_seconds": (
+                round(time.monotonic() - self.research_recovery_started_monotonic, 3)
+                if self.research_recovery_started_monotonic is not None else ""
+            ),
+            "green_allocation_seconds": self.research_green_allocation.get(lane, ""),
+            "allocation_total_seconds": sum(self.research_green_allocation.values()) if self.research_green_allocation else "",
+            "details": details,
+        })
+
+    def log_green_allocation(self, reason):
+        """Rekam snapshot alokasi hijau yang benar-benar dipakai pada satu siklus."""
+        self.research_green_allocation = dict(self.alokasi_hijau_siklus or {})
+        if not self.research_recording:
+            return
+        for lane in DAFTAR_LAJUR:
+            self.log_system_event(
+                "GREEN_ALLOCATION", lane=lane,
+                expected_seconds=self.research_green_allocation.get(lane, ""),
+                details=f"reason={reason}; min={FASE_HIJAU_MIN}; max={FASE_HIJAU_MAX}; "
+                        f"total_green={sum(self.research_green_allocation.values())}"
+            )
 
     def toggle_research_recording(self):
         self.research_recording = not self.research_recording
@@ -1365,6 +1417,10 @@ class TrafficGUI(ctk.CTk):
                 record = {
                     "timestamp": stamp,
                     "recording_session_id": self.research_session_id,
+                    "cycle_id": self.research_cycle_id,
+                    "allocated_green_seconds": self.research_green_allocation.get(self.lajur_aktif, "") if self.simulasi_aktif else "",
+                    "allocation_total_seconds": sum(self.research_green_allocation.values()) if self.research_green_allocation else "",
+                    "phase_elapsed_seconds": round(time.monotonic() - self.research_phase_started_monotonic, 3) if self.research_phase_started_monotonic is not None and self.simulasi_aktif else "",
                     "time": now.strftime("%H:%M:%S"),
                     "lane": lajur,
                     "data_source": (
@@ -1426,6 +1482,14 @@ class TrafficGUI(ctk.CTk):
         ):
             return
         self.research_records.clear()
+        self.research_event_records.clear()
+        self.research_cycle_id = 0
+        self.research_cycle_lanes_seen.clear()
+        self.research_recovery_lanes_seen.clear()
+        self.research_recovery_pending = False
+        self.research_recovery_started_monotonic = None
+        self.research_priority_lane = None
+        self.research_last_preemption_candidate = None
         self.research_last_emergency_state = {l: None for l in DAFTAR_LAJUR}
         self.research_session_id = ""
         for item in self.research_tree.get_children():
@@ -1450,11 +1514,11 @@ class TrafficGUI(ctk.CTk):
         # Selaraskan kolom CSV dengan data snapshot dan tabel GUI, termasuk kolom waktu.
         # DictWriter menulis nilai kosong hanya jika sebuah kolom memang tidak ada di record.
         fields = [
-            "timestamp", "recording_session_id", "time", "lane", "data_source", *BOBOT_KENDARAAN.keys(),
+            "timestamp", "recording_session_id", "cycle_id", "time", "lane", "data_source", *BOBOT_KENDARAAN.keys(),
             "model_file", "yolo_conf_threshold", "yolo_iou_threshold",
             "inference_image_size", "roi_enabled", "sample_interval_ms",
             "total_vehicles", "weighted_score", "signal_phase",
-            "active_lane", "green_remaining_seconds", "mode",
+            "active_lane", "green_remaining_seconds", "allocated_green_seconds", "allocation_total_seconds", "phase_elapsed_seconds", "mode",
             "visual_emergency_class", "visual_confidence", "visual_threshold",
             "visual_pass", "audio_siren_score", "audio_threshold", "audio_pass",
             "and_confirmed", "emergency_lane", "preemption_active", "event_type",
@@ -1487,6 +1551,41 @@ class TrafficGUI(ctk.CTk):
         messagebox.showinfo(
             "Ekspor selesai",
             f"Data mentah tersimpan:\n{path}\nJumlah baris data: {len(rows)}"
+        )
+
+    def export_research_events(self):
+        """Ekspor event log aktual yang digunakan untuk Bab 4.4."""
+        if not self.research_event_records:
+            messagebox.showwarning(
+                "Belum ada event",
+                "Aktifkan Rekam sebelum simulasi dimulai, lalu jalankan setidaknya satu transisi fase."
+            )
+            return
+        path = filedialog.asksaveasfilename(
+            title="Simpan event log evaluasi Bab 4.4",
+            defaultextension=".csv",
+            filetypes=[("CSV", "*.csv")],
+            initialfile="smart_traffic_system_recovery_events.csv",
+        )
+        if not path:
+            return
+        fields = [
+            "timestamp", "recording_session_id", "cycle_id", "event_type", "lane",
+            "from_phase", "to_phase", "duration_seconds", "expected_seconds",
+            "recovery_elapsed_seconds", "green_allocation_seconds",
+            "allocation_total_seconds", "details"
+        ]
+        try:
+            with open(path, "w", newline="", encoding="utf-8-sig") as file:
+                writer = csv.DictWriter(file, fieldnames=fields, extrasaction="ignore")
+                writer.writeheader()
+                writer.writerows(self.research_event_records)
+        except OSError as exc:
+            messagebox.showerror("Gagal mengekspor event", f"File tidak dapat disimpan:\n{exc}")
+            return
+        messagebox.showinfo(
+            "Ekspor event selesai",
+            f"Event log tersimpan:\n{path}\nJumlah event: {len(self.research_event_records)}"
         )
 
     def export_research_summary(self):
@@ -1987,28 +2086,100 @@ class TrafficGUI(ctk.CTk):
         return DAFTAR_LAJUR[(indeks + 1) % len(DAFTAR_LAJUR)]
 
     def siklus_transisi_fase(self):
-        """Urutan aman: HIJAU -> KUNING -> ALL_RED -> HIJAU."""
+        """Urutan aman HIJAU -> KUNING -> ALL_RED -> HIJAU, dengan event timing."""
+        now_mono = time.monotonic()
+        elapsed = (
+            round(now_mono - self.research_phase_started_monotonic, 3)
+            if self.research_phase_started_monotonic is not None else ""
+        )
+        previous_lane = self.lajur_aktif
+
         if self.fase_saat_ini == "HIJAU":
+            expected = self.research_green_allocation.get(previous_lane, self.hitung_mundur + 1)
+            self.log_system_event(
+                "PHASE_TRANSITION", lane=previous_lane,
+                from_phase="HIJAU", to_phase="KUNING",
+                duration_seconds=elapsed, expected_seconds=expected
+            )
+            if self.research_priority_lane == previous_lane:
+                self.log_system_event(
+                    "EMERGENCY_PRIORITY_ENDED", lane=previous_lane,
+                    from_phase="HIJAU", to_phase="KUNING",
+                    duration_seconds=elapsed, expected_seconds=expected
+                )
+                self.research_recovery_pending = True
+                self.research_recovery_started_monotonic = now_mono
+                self.research_recovery_lanes_seen.clear()
+                self.log_system_event(
+                    "RECOVERY_STARTED", lane=previous_lane,
+                    from_phase="HIJAU", to_phase="KUNING",
+                    details="Emergency green service ended; observe the next complete normal cycle."
+                )
+                self.research_priority_lane = None
             self.fase_saat_ini = "KUNING"
             self.hitung_mundur = FASE_KUNING
+            self.research_phase_started_monotonic = now_mono
             return
 
         if self.fase_saat_ini == "KUNING":
+            self.log_system_event(
+                "PHASE_TRANSITION", lane=previous_lane,
+                from_phase="KUNING", to_phase="ALL_RED",
+                duration_seconds=elapsed, expected_seconds=FASE_KUNING
+            )
             self.fase_saat_ini = "ALL_RED"
             self.hitung_mundur = FASE_ALL_RED
+            self.research_phase_started_monotonic = now_mono
             return
 
-        # All-red selesai: baru pindahkan hak jalan ke pendekat berikutnya.
         lajur_baru = self.pilih_lajur_berikut()
-        # Saat putaran kembali ke Utara, ambil snapshot bobot baru untuk
-        # putaran berikutnya. Dalam satu putaran, keempat durasi tetap konsisten.
+        self.log_system_event(
+            "PHASE_TRANSITION", lane=lajur_baru,
+            from_phase="ALL_RED", to_phase="HIJAU",
+            duration_seconds=elapsed, expected_seconds=FASE_ALL_RED
+        )
+
         if lajur_baru == DAFTAR_LAJUR[0]:
+            if set(DAFTAR_LAJUR).issubset(self.research_cycle_lanes_seen):
+                self.log_system_event(
+                    "CYCLE_COMPLETED", lane=lajur_baru,
+                    details="All four approaches received a green phase in this observed cycle."
+                )
+            self.research_cycle_lanes_seen.clear()
+            self.research_cycle_id += 1
             self.alokasi_hijau_siklus = self.hitung_alokasi_hijau_siklus()
+            self.log_green_allocation("NEW_NORMAL_CYCLE")
+
         self.lajur_aktif = lajur_baru
         self.lajur_terpaksa = None
         self.fase_saat_ini = "HIJAU"
         self.waktu_hijau_terakhir[lajur_baru] = time.time()
         self.hitung_mundur = self.hitung_durasi_fase_hijau(lajur_baru)
+        self.research_phase_started_monotonic = now_mono
+
+        if self.research_priority_lane == lajur_baru:
+            self.log_system_event(
+                "EMERGENCY_GREEN_STARTED", lane=lajur_baru,
+                from_phase="ALL_RED", to_phase="HIJAU",
+                expected_seconds=self.hitung_mundur
+            )
+        elif not self.override_manual_aktif:
+            self.research_cycle_lanes_seen.add(lajur_baru)
+            if self.research_recovery_pending:
+                self.research_recovery_lanes_seen.add(lajur_baru)
+                if (
+                    set(DAFTAR_LAJUR).issubset(self.research_recovery_lanes_seen)
+                    and self.lajur_darurat_terkonfirmasi() is None
+                ):
+                    recovery_elapsed = round(now_mono - self.research_recovery_started_monotonic, 3)
+                    self.log_system_event(
+                        "RECOVERY_CYCLE_COMPLETED", lane=lajur_baru,
+                        duration_seconds=recovery_elapsed,
+                        details="All four approaches completed a green service after emergency priority ended."
+                    )
+                    self.research_recovery_pending = False
+                    self.research_recovery_started_monotonic = None
+                    self.research_recovery_lanes_seen.clear()
 
     def sinkronisasi_tampilan_ui(self):
         """Memperbarui warna bulatan lampu, countdown, dan bingkai kamera."""
@@ -2043,6 +2214,15 @@ class TrafficGUI(ctk.CTk):
         # emergency preemption sampai satu giliran hijau lajur target selesai.
         emergency_lane = None if self.override_manual_aktif else self.lajur_darurat_terkonfirmasi()
         if emergency_lane is not None and emergency_lane != self.lajur_aktif:
+            if self.research_last_preemption_candidate != emergency_lane:
+                self.log_system_event(
+                    "EMERGENCY_PREEMPTION_REQUESTED", lane=emergency_lane,
+                    from_phase=self.fase_saat_ini,
+                    to_phase="KUNING" if self.fase_saat_ini == "HIJAU" else self.fase_saat_ini,
+                    details="Dual-modal visual-audio confirmation passed both configured thresholds."
+                )
+                self.research_last_preemption_candidate = emergency_lane
+            self.research_priority_lane = emergency_lane
             self.lajur_terpaksa = emergency_lane
             # Jangan melompati clearance: preemption dimulai melalui kuning,
             # kemudian ALL_RED, baru pendekat darurat memperoleh hijau.
@@ -2084,6 +2264,16 @@ class TrafficGUI(ctk.CTk):
 
         self.fase_saat_ini = "HIJAU"
         self.hitung_mundur = durasi_awal
+        self.research_phase_started_monotonic = time.monotonic()
+        self.research_cycle_id = 1
+        self.research_cycle_lanes_seen = {self.lajur_aktif}
+        self.research_recovery_lanes_seen.clear()
+        self.research_recovery_pending = False
+        self.research_recovery_started_monotonic = None
+        self.research_priority_lane = None
+        self.research_last_preemption_candidate = None
+        self.log_green_allocation("SIMULATION_START")
+        self.log_system_event("CYCLE_STARTED", lane=self.lajur_aktif, to_phase="HIJAU", expected_seconds=durasi_awal)
         self.lajur_terpaksa = None
         self.override_manual_aktif = False
         self.waktu_hijau_terakhir[self.lajur_aktif] = time.time()
@@ -2096,7 +2286,10 @@ class TrafficGUI(ctk.CTk):
         self._id_ticker = self.after(1000, self.engine_simulation_ticker)
 
     def action_hentikan_simulasi(self):
+        if self.simulasi_aktif:
+            self.log_system_event("SIMULATION_STOPPED", lane=self.lajur_aktif, from_phase=self.fase_saat_ini)
         self.simulasi_aktif = False
+        self.research_phase_started_monotonic = None
         self.lajur_terpaksa = None
         self.override_manual_aktif = False
         if self._id_ticker is not None:
