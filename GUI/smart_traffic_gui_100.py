@@ -389,6 +389,7 @@ class DetektorKamera(threading.Thread):
         self.frames = {l: None for l in DAFTAR_LAJUR}
         self.jumlah = {l: {j: 0 for j in BOBOT_KENDARAAN} for l in DAFTAR_LAJUR}
         self.confidence_visual_darurat = {l: 0.0 for l in DAFTAR_LAJUR}
+        self.kelas_visual_darurat = {l: "" for l in DAFTAR_LAJUR}
         self._riwayat = {l: collections.deque(maxlen=5) for l in DAFTAR_LAJUR}
         self.source_update_queue = queue.Queue()
         self.source_pending = set()
@@ -406,6 +407,7 @@ class DetektorKamera(threading.Thread):
                 self.frames[lajur] = None
                 self.jumlah[lajur] = {j: 0 for j in BOBOT_KENDARAAN}
                 self.confidence_visual_darurat[lajur] = 0.0
+                self.kelas_visual_darurat[lajur] = ""
                 self._riwayat[lajur].clear()
         self.source_update_queue.put(lanes)
 
@@ -437,6 +439,7 @@ class DetektorKamera(threading.Thread):
                             self.frames[lajur] = None
                             self.jumlah[lajur] = {j: 0 for j in BOBOT_KENDARAAN}
                             self.confidence_visual_darurat[lajur] = 0.0
+                            self.kelas_visual_darurat[lajur] = ""
                             self._riwayat[lajur].clear()
                     else:
                         cap.release()
@@ -572,6 +575,7 @@ class DetektorKamera(threading.Thread):
                 poly = np.array([(int(x * w), int(y * h)) for x, y in ROI[lajur]], np.int32)
                 hitung = {j: 0 for j in BOBOT_KENDARAAN}
                 confidence_darurat = 0.0
+                kelas_darurat = ""
                 for box in res.boxes:
                     jenis = KELAS_YOLO[int(box.cls[0])]
                     confidence_box = float(box.conf[0])
@@ -582,8 +586,9 @@ class DetektorKamera(threading.Thread):
                     cv2.rectangle(img, (int(x1), int(y1)), (int(x2), int(y2)), warna, 2)
                     if dalam:
                         hitung[jenis] += 1
-                        if jenis in KELAS_VISUAL_DARURAT:
-                            confidence_darurat = max(confidence_darurat, confidence_box)
+                        if jenis in KELAS_VISUAL_DARURAT and confidence_box > confidence_darurat:
+                            confidence_darurat = confidence_box
+                            kelas_darurat = jenis
                 if GUNAKAN_ROI:
                     cv2.polylines(img, [poly], True, (0, 255, 255), 2)
 
@@ -599,6 +604,7 @@ class DetektorKamera(threading.Thread):
                 with self.lock:
                     self.jumlah[lajur] = median
                     self.confidence_visual_darurat[lajur] = confidence_darurat
+                    self.kelas_visual_darurat[lajur] = kelas_darurat
                     self.frames[lajur] = img
 
         # VideoCapture dilepas oleh thread pemiliknya setelah loop selesai,
@@ -615,7 +621,8 @@ class DetektorKamera(threading.Thread):
             jumlah = {l: dict(v) for l, v in self.jumlah.items()}
             frames = {l: (None if f is None else f.copy()) for l, f in self.frames.items()}
             confidence = dict(self.confidence_visual_darurat)
-        return jumlah, frames, confidence
+            kelas = dict(self.kelas_visual_darurat)
+        return jumlah, frames, confidence, kelas
 
     def stop(self):
         """Minta thread berhenti; jangan release VideoCapture dari thread GUI."""
@@ -719,6 +726,7 @@ class TrafficGUI(ctk.CTk):
         self.lajur_terpaksa = None       # Target berikutnya setelah fase clearance
         self.override_manual_aktif = False # Prioritas Paksa Hijau sampai satu giliran hijau selesai
         self.confidence_visual_darurat = {l: 0.0 for l in DAFTAR_LAJUR}
+        self.kelas_visual_darurat = {l: "" for l in DAFTAR_LAJUR}
 
         # [BARU] State kamera & penjadwalan
         self._id_ticker = None
@@ -740,6 +748,8 @@ class TrafficGUI(ctk.CTk):
         self.research_recording = False
         self._research_after_id = None
         self.research_sample_interval_ms = 1000
+        self.research_last_emergency_state = {l: None for l in DAFTAR_LAJUR}
+        self.research_session_id = ""
 
         # Konfigurasi Master Grid Layout
         self.grid_columnconfigure(0, weight=0, minsize=360)  # Kolom Kontrol Kiri
@@ -928,6 +938,7 @@ class TrafficGUI(ctk.CTk):
         # Nilai dimulai sebagai None. Persentase baru muncul setelah modul audio
         # mengirim hasil agar GUI tidak menampilkan angka confidence palsu.
         self.audio_emergency_scores = {l: None for l in DAFTAR_LAJUR}
+        self.audio_score_method_by_lane = {l: "unavailable" for l in DAFTAR_LAJUR}
         self.audio_confidence_widgets = {}
         for lajur in DAFTAR_LAJUR:
             baris = ctk.CTkFrame(f_suara1, fg_color="transparent")
@@ -1283,6 +1294,8 @@ class TrafficGUI(ctk.CTk):
     def toggle_research_recording(self):
         self.research_recording = not self.research_recording
         if self.research_recording:
+            if not self.research_records:
+                self.research_session_id = datetime.now().astimezone().isoformat(timespec="seconds")
             self.btn_research_record.configure(
                 text="Jeda Rekam", fg_color="#b7791f", hover_color="#946116"
             )
@@ -1310,6 +1323,36 @@ class TrafficGUI(ctk.CTk):
                     except (TypeError, ValueError):
                         counts[jenis] = 0
 
+                visual_confidence = float(self.confidence_visual_darurat.get(lajur, 0.0) or 0.0)
+                audio_score = self.audio_emergency_scores.get(lajur)
+                visual_class = ""
+                if self.detektor is not None:
+                    visual_class = getattr(self.detektor, "kelas_visual_darurat", {}).get(lajur, "")
+                visual_pass = visual_confidence > AMBANG_VISUAL_DARURAT
+                audio_pass = audio_score is not None and float(audio_score) > AMBANG_AUDIO_DARURAT
+                and_confirmed = bool(visual_pass and audio_pass)
+                emergency_lane = self.lajur_darurat_terkonfirmasi()
+                preemption_active = bool(
+                    self.simulasi_aktif and (
+                        self.lajur_terpaksa == lajur
+                        or (self.lajur_aktif == lajur and self.fase_saat_ini == "HIJAU" and and_confirmed)
+                    )
+                )
+                state_now = (visual_pass, audio_pass, and_confirmed)
+                previous_state = self.research_last_emergency_state.get(lajur)
+                event_type = "INITIAL_STATE" if previous_state is None else (
+                    "STATE_CHANGE" if state_now != previous_state else "NO_CHANGE"
+                )
+                self.research_last_emergency_state[lajur] = state_now
+                if and_confirmed:
+                    decision_reason = "AND_CONFIRMED"
+                elif not visual_pass:
+                    decision_reason = "VISUAL_NOT_PASS"
+                elif audio_score is None:
+                    decision_reason = "AUDIO_UNAVAILABLE"
+                else:
+                    decision_reason = "AUDIO_NOT_PASS"
+
                 total = sum(counts.values())
                 weighted_score = round(
                     sum(counts[k] * BOBOT_KENDARAAN[k] for k in BOBOT_KENDARAAN), 3
@@ -1321,6 +1364,7 @@ class TrafficGUI(ctk.CTk):
                 )
                 record = {
                     "timestamp": stamp,
+                    "recording_session_id": self.research_session_id,
                     "time": now.strftime("%H:%M:%S"),
                     "lane": lajur,
                     "data_source": (
@@ -1334,6 +1378,25 @@ class TrafficGUI(ctk.CTk):
                     "active_lane": self.lajur_aktif if self.simulasi_aktif else "-",
                     "green_remaining_seconds": max(0, int(self.hitung_mundur)) if phase == "HIJAU" else 0,
                     "mode": self.var_mode.get(),
+                    "visual_emergency_class": visual_class,
+                    "visual_confidence": round(visual_confidence, 6),
+                    "visual_threshold": AMBANG_VISUAL_DARURAT,
+                    "visual_pass": int(visual_pass),
+                    "audio_siren_score": "" if audio_score is None else round(float(audio_score), 6),
+                    "audio_threshold": AMBANG_AUDIO_DARURAT,
+                    "audio_pass": int(audio_pass),
+                    "and_confirmed": int(and_confirmed),
+                    "emergency_lane": emergency_lane or "",
+                    "preemption_active": int(preemption_active),
+                    "event_type": event_type,
+                    "decision_reason": decision_reason,
+                    "audio_score_method": self.audio_score_method_by_lane.get(lajur, "unavailable"),
+                    "model_file": os.path.basename(MODEL_PATH),
+                    "yolo_conf_threshold": CONF,
+                    "yolo_iou_threshold": IOU,
+                    "inference_image_size": IMGSZ,
+                    "roi_enabled": int(GUNAKAN_ROI),
+                    "sample_interval_ms": self.research_sample_interval_ms,
                 }
                 self.research_records.append(record)
                 self.research_tree.insert(
@@ -1363,6 +1426,8 @@ class TrafficGUI(ctk.CTk):
         ):
             return
         self.research_records.clear()
+        self.research_last_emergency_state = {l: None for l in DAFTAR_LAJUR}
+        self.research_session_id = ""
         for item in self.research_tree.get_children():
             self.research_tree.delete(item)
         self.lbl_research_status.configure(
@@ -1385,9 +1450,15 @@ class TrafficGUI(ctk.CTk):
         # Selaraskan kolom CSV dengan data snapshot dan tabel GUI, termasuk kolom waktu.
         # DictWriter menulis nilai kosong hanya jika sebuah kolom memang tidak ada di record.
         fields = [
-            "timestamp", "time", "lane", "data_source", *BOBOT_KENDARAAN.keys(),
+            "timestamp", "recording_session_id", "time", "lane", "data_source", *BOBOT_KENDARAAN.keys(),
+            "model_file", "yolo_conf_threshold", "yolo_iou_threshold",
+            "inference_image_size", "roi_enabled", "sample_interval_ms",
             "total_vehicles", "weighted_score", "signal_phase",
-            "active_lane", "green_remaining_seconds", "mode"
+            "active_lane", "green_remaining_seconds", "mode",
+            "visual_emergency_class", "visual_confidence", "visual_threshold",
+            "visual_pass", "audio_siren_score", "audio_threshold", "audio_pass",
+            "and_confirmed", "emergency_lane", "preemption_active", "event_type",
+            "decision_reason", "audio_score_method"
         ]
         rows = []
         for record in self.research_records:
@@ -1448,6 +1519,18 @@ class TrafficGUI(ctk.CTk):
                 "max_vehicles_per_snapshot": max(totals),
                 "mean_weighted_score": round(statistics.mean(scores), 3),
                 "max_weighted_score": round(max(scores), 3),
+                "visual_pass_samples": sum(int(r.get("visual_pass", 0)) for r in samples),
+                "audio_pass_samples": sum(int(r.get("audio_pass", 0)) for r in samples),
+                "audio_available_samples": sum(r.get("audio_siren_score", "") not in ("", None) for r in samples),
+                "and_confirmed_samples": sum(int(r.get("and_confirmed", 0)) for r in samples),
+                "preemption_active_samples": sum(int(r.get("preemption_active", 0)) for r in samples),
+                "emergency_state_changes": sum(r.get("event_type") == "STATE_CHANGE" for r in samples),
+                "mean_visual_confidence": round(statistics.mean(float(r.get("visual_confidence", 0.0)) for r in samples), 6),
+                "max_visual_confidence": round(max(float(r.get("visual_confidence", 0.0)) for r in samples), 6),
+                "mean_audio_siren_score": round(statistics.mean(
+                    float(r["audio_siren_score"]) for r in samples
+                    if r.get("audio_siren_score") not in ("", None)
+                ), 6) if any(r.get("audio_siren_score") not in ("", None) for r in samples) else "",
             }
             for jenis in BOBOT_KENDARAAN:
                 values = [int(r[jenis]) for r in samples]
@@ -1578,6 +1661,7 @@ class TrafficGUI(ctk.CTk):
             nama_lajur: (emergency if nama_lajur == lajur else None)
             for nama_lajur in DAFTAR_LAJUR
         })
+        self.audio_score_method_by_lane[lajur] = "YAMNet"
 
     def _hasil_analisis_audio(self, lajur, result, error):
         if error:
@@ -1634,6 +1718,7 @@ class TrafficGUI(ctk.CTk):
 
             if nilai is None:
                 self.audio_emergency_scores[lajur] = None
+                self.audio_score_method_by_lane[lajur] = "unavailable"
                 widget["progress"].set(0)
                 widget["persen"].configure(text="--%", text_color="#aab7c4")
                 continue
@@ -1651,6 +1736,7 @@ class TrafficGUI(ctk.CTk):
                 )
 
             self.audio_emergency_scores[lajur] = score
+            self.audio_score_method_by_lane[lajur] = "external_audio_score"
             widget["progress"].set(score)
             widget["persen"].configure(
                 text=f"{score * 100:.0f}%",
@@ -1701,6 +1787,9 @@ class TrafficGUI(ctk.CTk):
         for lajur, nilai in hasil.items():
             widget = self.audio_confidence_widgets[lajur]
             self.audio_emergency_scores[lajur] = nilai
+            self.audio_score_method_by_lane[lajur] = (
+                "heuristic_siren_score" if nilai is not None else "unavailable"
+            )
             if nilai is None:
                 widget["progress"].set(0)
                 widget["persen"].configure(text="--%", text_color="#aab7c4")
@@ -1733,8 +1822,11 @@ class TrafficGUI(ctk.CTk):
                     self.kumpulan_panel[l].kunci(False)
                 print("[!] Detektor gagal:", det.error)
                 return
-            jumlah, frames, confidence_visual = det.ambil()            
+            jumlah, frames, confidence_visual, kelas_visual = det.ambil()
             self.confidence_visual_darurat.update(confidence_visual)
+            if not hasattr(self, "kelas_visual_darurat"):
+                self.kelas_visual_darurat = {l: "" for l in DAFTAR_LAJUR}
+            self.kelas_visual_darurat.update(kelas_visual)
             for l in self.lajur_berkamera:
                 panel = self.kumpulan_panel[l]
                 with det.lock:
