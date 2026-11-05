@@ -200,13 +200,13 @@ Although MFCC appears in this subsection's established heading, the implementati
 
 ARGUS calculates a weighted-demand score for each approach by multiplying detected vehicle counts by their operational class weights:
 
-[
-W_i=sum_{c=1}^{8}N_{i,c}w_c
-]
+\[
+W_i=\sum_{c=1}^{8}N_{i,c}w_c
+\]
 
 where (N_{i,c}) is the detected count of vehicle class (c) on approach (i), and (w_c) is the corresponding operational weight. These weights are simulator parameters and should not be presented as universal PCU standards.
 
-The exact eight-class operational weights are listed in **Table D.1 in Appendix D**. They must be copied from the final controller configuration and should not be presented as universal PCU standards.
+The exact eight-class operational weights are listed in **Table D.1 in Appendix D** and must be copied from the final controller configuration.
 
 The controller distributes a 120-second aggregate green-time budget among the four approaches, subject to a minimum of 10 seconds and a maximum of 40 seconds per approach. The allocation uses bounded weighted water-filling; when all approach scores are zero, green time is divided equally. Largest-remainder rounding is used to preserve the 120-second total. Each approach's transition includes three seconds of yellow and one second of all-red clearance.
 
