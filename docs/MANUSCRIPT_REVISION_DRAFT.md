@@ -142,9 +142,9 @@ ARGUS (Adaptive Real-time Green-time Update System) is a software-based simulati
 
 ### 3.1.1 System Requirements Analysis
 
-The system uses video sources representing the North, East, South, and West approaches. Sources can be CCTV streams, webcams, or local video files selected through the launcher. The visual subsystem detects and counts eight vehicle classes. The resulting counts are processed using the operational weights in Table 3.1.
+The system uses video sources representing the North, East, South, and West approaches. Sources can be CCTV streams, webcams, or local video files selected through the launcher. The visual subsystem detects and counts eight vehicle classes. The resulting counts are processed using the operational weights in Table D.1 in Appendix D.
 
-For emergency verification, the GUI analyses the soundtrack of a user-selected local video. The audio pipeline uses pretrained YAMNet embeddings and a Logistic Regression classifier. The software also requires a computer capable of running the GUI, video decoding, object detection, and audio inference. Physical signal controllers and IoT-based traffic-light actuation are outside the current implementation.
+For emergency verification, the GUI analyses the soundtrack of a user-selected local video. When multiple local videos are assigned, the first one in the North–East–South–West approach order supplies the audio; the other video sources remain visual inputs. The audio pipeline uses pretrained YAMNet embeddings and a Logistic Regression classifier. The software also requires a computer capable of running the GUI, video decoding, object detection, and audio inference. Physical signal controllers and IoT-based traffic-light actuation are outside the current implementation.
 
 ### 3.1.2 System Characteristics
 
@@ -158,7 +158,7 @@ The main system characteristics are:
 
 ## 3.2 System Architecture and Algorithm Design
 
-ARGUS integrates four-approach video input, YOLO26n vehicle detection, audio classification, weighted-demand estimation, signal-timing logic, and GUI monitoring. Visual feeds are processed per approach, while audio is obtained from the soundtrack of a user-selected local video. The system displays vehicle counts, weighted scores, audio scores, simulated signal states, and countdowns; periodic system-state records can be exported as CSV.
+ARGUS integrates four-approach video input, YOLO26n vehicle detection, audio classification, weighted-demand estimation, signal-timing logic, and GUI monitoring. Visual feeds are processed per approach, while audio is obtained from one user-selected local video's soundtrack; if several local videos are assigned, only the first in North–East–South–West order supplies audio. The system displays vehicle counts, weighted scores, audio scores, simulated signal states, and countdowns; periodic system-state records can be exported as CSV.
 
 **Figure 3.1. ARGUS System Architecture**
 
@@ -170,7 +170,7 @@ ARGUS integrates four-approach video input, YOLO26n vehicle detection, audio cla
 
 ### 3.3.1. Software Implementation
 
-The visual module uses YOLO26n, Ultralytics, and OpenCV to detect eight vehicle classes, with confidence 0.15, NMS IoU 0.60, and five-frame median filtering. The audio module processes three-second mono segments at 16 kHz from a selected video's soundtrack; pretrained YAMNet generates 1,024-dimensional embeddings for Logistic Regression classification into ambulance, firetruck, police, and traffic.
+The visual module uses YOLO26n, Ultralytics, and OpenCV to detect eight vehicle classes, with confidence 0.15, NMS IoU 0.60, and five-frame median filtering. The audio module processes three-second mono segments at 16 kHz from the selected local video's soundtrack; pretrained YAMNet generates 1,024-dimensional embeddings for Logistic Regression classification into ambulance, firetruck, police, and traffic. When several local videos are assigned, only the first in North–East–South–West order is analysed for audio.
 
 For each approach, the detected class counts are multiplied by the corresponding operational weights:
 
@@ -182,9 +182,9 @@ where \(N_{i,c}\) is the detected count of class \(c\) on approach \(i\), and \(
 
 ### 3.3.2. Module Integration
 
-The visual and audio pipelines operate independently and provide their outputs to the emergency-verification module. Priority is requested only when visual emergency confidence and aggregate audio emergency score both exceed 0.65 on the same approach. The selected approach receives the next eligible green phase after the configured yellow and all-red intervals. Otherwise, normal weighted-demand allocation continues. ARGUS remains a software simulation and is not connected to physical traffic-signal controllers.
+The visual and audio pipelines operate independently and provide their outputs to the emergency-verification module. Priority is requested only when visual emergency confidence and aggregate audio emergency score both strictly exceed 0.65 on the same approach. If the confirmed approach differs from the active approach, it is selected for the next green phase after the configured yellow and all-red intervals; an active manual override takes precedence over automatic emergency priority. Otherwise, normal cyclic phase order and weighted green-time allocation continue. ARGUS remains a software simulation and is not connected to physical traffic-signal controllers.
 
-**Figure 3.3. Dual-Modal Emergency Verification Flowchart**
+**Figure 3.2. Dual-Modal Emergency Verification Flowchart**
 
 [Insert the dual-modal emergency-verification flowchart showing same-approach matching, both threshold checks (>0.65), the verification decision, and priority at the next eligible green phase after yellow and all-red clearance. Include only branches confirmed by the final controller code.]
 
@@ -200,7 +200,7 @@ The simulation represents four approaches: North, East, South, and West. Record 
 
 ### 3.4.2 Heterogeneous Traffic and Green-Time Allocation
 
-Test low-, medium-, and high-demand scenarios with different vehicle-class compositions. Calculate the expected approach scores using the operational weights in Table 3.1 and compare them with ARGUS outputs. Verify that each green duration is 10–40 seconds and that the four durations total 120 seconds. Include an all-zero-demand case to check equal allocation.
+Test low-, medium-, and high-demand scenarios with different vehicle-class compositions. Calculate the expected approach scores using the operational weights in Table D.1 in Appendix D and compare them with ARGUS outputs. Verify that each green duration is 10–40 seconds and that the four durations total 120 seconds. Include an all-zero-demand case to check equal allocation.
 
 ### 3.4.3 Dual-Modal Emergency Verification
 
@@ -214,13 +214,13 @@ $
 T_{\mathrm{rotation}}=120+4(3)+4(1)=136\text{ seconds}
 $
 
-For simultaneous emergency candidates, the software ranks approaches using the adjusted score:
+When more than one approach satisfies the dual-modal condition, the controller ranks candidates first by visual emergency confidence, then by aggregate audio emergency score, and finally by the adjusted demand score:
 
 $
 S_i=W_i+0.01\,t_i
 $
 
-where $t_i$ is the elapsed time since approach $i$ last received green. This term affects candidate ranking only; it does not restore missed green time or demonstrate queue recovery. Verify that emergency requests retain the yellow and all-red clearance intervals.
+where $W_i$ is the weighted vehicle score and $t_i$ is the elapsed time since approach $i$ last received green. The adjusted score is therefore a third-level selection criterion, not the primary emergency trigger or the normal green-time allocation formula. It does not restore missed green time or demonstrate queue recovery. Verify that emergency requests retain the yellow and all-red clearance intervals.
 
 ## 3.5 Performance Metrics and System Evaluation
 
@@ -249,7 +249,7 @@ where TP is true positive, FP is false positive, FN is false negative, AP is ave
 
 ### 3.5.2 Traffic-Load and Green-Time Allocation Metrics
 
-Compare ARGUS weighted scores with manually calculated scores from known vehicle counts and Table 3.1. For signal allocation, report each approach's green duration and verify the total allocation and per-approach limits:
+Compare ARGUS weighted scores with manually calculated scores from known vehicle counts and Table D.1 in Appendix D. For signal allocation, report each approach's green duration and verify the total allocation and per-approach limits:
 
 $$
 \sum_{i=1}^{4}G_i=120
@@ -284,6 +284,28 @@ $$
 $$
 
 A zero deviation indicates that the measured interval matches its configured duration. Record the phase sequence during normal operation and emergency-priority requests. Any claim about recovery time, restored traffic equilibrium, or reduced delay requires a separate recovery definition and supporting measurements.
+
+---
+
+# APPENDIX D — ARGUS OPERATIONAL VEHICLE WEIGHTS
+
+**Table D.1. Operational vehicle weights configured in ARGUS**
+
+| Detected vehicle class | Operational weight |
+|---|---:|
+| Ambulance | 1.00 |
+| Bus | 2.00 |
+| Car | 1.00 |
+| Fire engine | 2.00 |
+| Military | 2.00 |
+| Motorcycle | 0.33 |
+| Police car | 1.00 |
+| Truck | 2.00 |
+
+*Source: `BOBOT_KENDARAAN` in `GUI/smart_traffic_gui_100.py`.*
+
+These values are simulator configuration weights used to calculate weighted approach demand. They are not presented as universal PCU factors or as locally calibrated traffic-engineering values. Emergency priority is handled separately through the dual-modal verification condition.
+
 ---
 
 # Note for Author — Checks Before Submission
@@ -291,6 +313,8 @@ A zero deviation indicates that the measured interval matches its configured dur
 **Note: Internal editing checklist; do not include this section in the submitted manuscript unless the competition template explicitly permits it.**
 
 - Verify the source, definition, and year of the reported Yogyakarta vehicle-registration figure in the original reference [6].
+- The active working draft contains Chapters 1–3 only; do not infer or recreate Chapters 4–5 from the old comparison manuscript. Add the current approved Chapters 4–5 before final submission.
+- The in-text citation [28] is present in the PCU discussion, but the active working draft does not contain its bibliography. Verify and include the exact supporting MKJI/PCU reference; do not renumber citations until the complete reference list is restored.
 - Confirm the PCU categories and values in Table 2.1 against the exact cited standard and reference. The simplified values must not be presented as universal.
 - Confirm that Table 3.1 matches the operational weights in the current software.
 - Verify the YOLO26n checkpoint, training dataset, data split, and independent test metrics before reporting model performance.
