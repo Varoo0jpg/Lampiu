@@ -51,7 +51,7 @@ jobs:
           assert gui.count("AMBANG_AUDIO_DARURAT = 0.65") == 1
           assert "AMBANG_SIRENE" not in gui
           assert "KELAS_VISUAL_DARURAT = {\"Ambulance\", \"Fire engine\", \"Police car\"}" in gui
-          assert "if jenis in KELAS_VISUAL_DARURAT:" in gui
+          assert "if jenis in KELAS_VISUAL_DARURAT and confidence_box > confidence_darurat:" in gui
           assert "TOTAL_ALOKASI_HIJAU = 120" in gui
           assert "FASE_HIJAU_MIN = 10" in gui and "FASE_HIJAU_MAX = 40" in gui
           assert "AMBANG_VISUAL_DARURAT = 0.65" in gui
