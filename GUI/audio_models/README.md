@@ -1,20 +1,45 @@
-# Audio classifier artifact — V2
+# Dokumentasi artefak classifier audio V2
 
-## Runtime contract
+Dokumen ini menjelaskan artefak yang dimuat oleh `GUI/audio_siren.py` pada GUI utama Lampiu.
 
-The current GUI loads this file through `GUI/audio_siren.py`:
+## Kontrak inferensi
 
-- Artifact: `best_audio_classifier_v2.joblib`
-- Feature extractor: pretrained Google YAMNet (`https://tfhub.dev/google/yamnet/1`)
-- Input to classifier: mean YAMNet embedding, 1,024 features per analysis window
-- Class labels: `ambulance`, `firetruck`, `police`, `traffic`
-- Inference output: per-class `predict_proba` scores; `emergency_score` is the sum of ambulance, firetruck, and police scores
-- Audio waveform supplied by the GUI: mono, 16 kHz, in 3-second windows
+| Komponen | Konfigurasi |
+|---|---|
+| Artefak | `best_audio_classifier_v2.joblib` |
+| Ekstraktor fitur | Google YAMNet pretrained |
+| Sumber model YAMNet | `https://tfhub.dev/google/yamnet/1` |
+| Input classifier | Rata-rata embedding YAMNet berdimensi 1.024 |
+| Sampling rate input | Mono, 16 kHz |
+| Jendela analisis GUI | 3 detik |
+| Kelas | `ambulance`, `firetruck`, `police`, `traffic` |
 
-## Training provenance
+Fungsi inferensi menghasilkan skor `predict_proba` untuk setiap kelas. Skor agregat audio darurat dihitung sebagai:
 
-The project training discussion recorded Logistic Regression with `C=100` as the selected configuration after comparing candidate C values `0.1, 1, 10, 100` and an RBF SVM candidate set. The selected Logistic Regression configuration was reported with validation Macro F1 of 92.17%. The inference module does not retrain the classifier.
+`emergency_score = P(ambulance) + P(firetruck) + P(police)`
 
-**Verification boundary:** the current repository contains the serialized estimator but not the complete audio-training notebook/script or a machine-readable training manifest. The inference module checks that the estimator exposes `predict_proba` and the expected four class labels; it does not independently assert the stored estimator's `C` parameter. Therefore, `C=100` is documented as the recorded training configuration, not as a value re-established by the inference code.
+Skor ini merupakan agregasi keluaran classifier. Jangan menyebutnya sebagai probabilitas sirene yang telah dikalibrasi secara independen untuk penggunaan operasional.
 
-If the classifier is retrained, update this document with the new dataset version, split strategy, random seed, selected estimator and hyperparameters, class order, validation metrics, test metrics, and artifact checksum. Do not replace the artifact without updating its provenance.
+## Asal konfigurasi pelatihan
+
+Rekap eksperimen pelatihan proyek mencatat Logistic Regression dengan `C=100` sebagai konfigurasi yang dipilih. Nilai ini merupakan informasi dari riwayat pelatihan yang tersedia, bukan parameter yang ditetapkan ulang oleh modul inferensi.
+
+**Batas verifikasi repository:** repository saat ini menyimpan artefak estimator, tetapi tidak menyertakan notebook/script pelatihan lengkap atau manifest pelatihan yang dapat direproduksi. Modul inferensi memeriksa bahwa estimator menyediakan `predict_proba()` dan `classes_`, serta memverifikasi bahwa empat nama kelas sesuai dengan kontrak. Modul tersebut tidak memeriksa ulang nilai `C` estimator.
+
+Karena itu, `C=100` dicatat sebagai konfigurasi pelatihan yang dilaporkan, bukan sebagai nilai yang telah dibuktikan ulang melalui kode inferensi.
+
+## Pembaruan artefak
+
+Jika model dilatih ulang, dokumentasi ini perlu diperbarui bersama artefaknya. Catat sekurang-kurangnya:
+
+1. versi dan sumber dataset;
+2. definisi kelas dan jumlah sampel per kelas;
+3. strategi pembagian train/validation/test;
+4. random seed dan prapemrosesan;
+5. ekstraktor fitur serta versi model YAMNet;
+6. algoritma classifier dan seluruh hyperparameter;
+7. urutan kelas yang tersimpan pada estimator;
+8. metrik validasi dan pengujian; dan
+9. checksum artefak model.
+
+Jangan mengganti file `best_audio_classifier_v2.joblib` tanpa memperbarui catatan asal model dan kontrak inferensinya.
