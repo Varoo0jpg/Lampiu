@@ -751,6 +751,11 @@ class TrafficGUI(ctk.CTk):
         self.research_last_emergency_state = {l: None for l in DAFTAR_LAJUR}
         self.research_session_id = ""
 
+        # Snapshot skor PCU hanya diperbarui saat alokasi siklus dihitung.
+        # Nilai ini dipakai selama siklus aktif, termasuk pada pencatatan CSV
+        # dan pemeringkatan tie-breaker lajur darurat.
+        self.skor_pcu_siklus = {l: 0.0 for l in DAFTAR_LAJUR}
+
         # Konfigurasi Master Grid Layout
         self.grid_columnconfigure(0, weight=0, minsize=360)  # Kolom Kontrol Kiri
         self.grid_columnconfigure(1, weight=1)               # Kolom Grafik Tengah
@@ -1354,8 +1359,10 @@ class TrafficGUI(ctk.CTk):
                     decision_reason = "AUDIO_NOT_PASS"
 
                 total = sum(counts.values())
+                # Skor yang dicatat adalah snapshot saat alokasi siklus dibuat,
+                # bukan hasil hitung ulang dari jumlah kendaraan live.
                 weighted_score = round(
-                    sum(counts[k] * BOBOT_KENDARAAN[k] for k in BOBOT_KENDARAAN), 3
+                    float(self.skor_pcu_siklus.get(lajur, 0.0)), 3
                 )
                 phase = (
                     self.fase_saat_ini
@@ -1884,10 +1891,11 @@ class TrafficGUI(ctk.CTk):
     # ENGINE CORE SIMULATION LOGIC
     # -----------------------------------------------------------
     def skor_lajur_disesuaikan(self, lajur, now=None):
-        """PCU + kompensasi waktu tunggu kumulatif (dalam detik)."""
+        """Snapshot PCU siklus + kompensasi waktu tunggu kumulatif."""
         if now is None:
             now = time.time()
-        pcu = self.kumpulan_panel[lajur].ambil_skor_bobot()
+        # Jangan hitung ulang PCU dari input live di tengah siklus.
+        pcu = self.skor_pcu_siklus.get(lajur, 0.0)
         waktu_tunggu = max(0.0, now - self.waktu_hijau_terakhir[lajur])
         return pcu + ALPHA_KOMPENSASI_TUNGGU * waktu_tunggu
 
@@ -1901,6 +1909,8 @@ class TrafficGUI(ctk.CTk):
             lajur: max(0.0, float(self.kumpulan_panel[lajur].ambil_skor_bobot()))
             for lajur in DAFTAR_LAJUR
         }
+        # Simpan satu snapshot PCU untuk seluruh siklus yang akan berjalan.
+        self.skor_pcu_siklus = dict(bobot)
         durasi = {lajur: float(FASE_HIJAU_MIN) for lajur in DAFTAR_LAJUR}
         sisa = float(TOTAL_ALOKASI_HIJAU - FASE_HIJAU_MIN * len(DAFTAR_LAJUR))
         aktif = set(DAFTAR_LAJUR)
