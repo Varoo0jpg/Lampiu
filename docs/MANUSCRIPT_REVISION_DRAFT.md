@@ -132,7 +132,7 @@ $$
 E_i = (V_i > 0.65) \\land (A_i > 0.65)
 $$
 
-A confirmed emergency request sets that approach as the next target unless a manual override is active. Yellow and all-red clearance intervals are retained. The thresholds are software settings, not field-calibrated safety parameters.
+A confirmed emergency request sets that approach as the next target. Yellow and all-red clearance intervals are retained. The thresholds are software settings, not field-calibrated safety parameters.
 
 # CHAPTER 3 — RESEARCH METHOD
 
@@ -172,7 +172,7 @@ The signal-timing module uses one snapshot of the four approach scores for each 
 
 For audio classification, YAMNet produces a 1,024-dimensional embedding for each three-second segment. Logistic Regression classifies the embedding into ambulance, firetruck, police, or traffic. The emergency audio score is calculated by adding the scores for the three emergency classes.
 
-The emergency-verification module applies an AND condition: the visual emergency confidence and aggregate audio emergency score must both be greater than 0.65 and belong to the same approach. When confirmed, the approach is selected for the next green phase unless a manual override is active. The signal still passes through yellow and all-red clearance intervals.
+The emergency-verification module applies an AND condition: the visual emergency confidence and aggregate audio emergency score must both be greater than 0.65 and belong to the same approach. When confirmed, the approach is selected for the next green phase. The signal still passes through yellow and all-red clearance intervals.
 
 ### 3.2.3 Output
 
@@ -239,43 +239,39 @@ $$
 V_i>0.65\quad\text{and}\quad A_i>0.65
 $$
 
-The confirmed approach is requested as the next green phase unless a manual override is active. Signal transitions follow the sequence green → yellow → all-red → green; emergency priority does not bypass the clearance intervals. The GUI and detection processes operate through separate processing threads so that video and audio processing do not block the interface. All signal operations remain within the software simulation.
+The confirmed approach is requested as the next green phase. Signal transitions follow the sequence green → yellow → all-red → green; emergency priority does not bypass the clearance intervals. The GUI and detection processes operate through separate processing threads so that video and audio processing do not block the interface. All signal operations remain within the software simulation.
 
 ## 3.4 Experimental Setup and Testing Scenarios
 
 **Note for Author — Evaluation status (not part of the manuscript):** The following procedures define the evaluation to be performed. They are not experimental findings; results should be reported only after the corresponding tests have been run and recorded.
 
-### 3.4.1 Simulation Environment and Configuration
+### 3.4.1 Experimental Environment
 
-The test environment represents four approaches: North, East, South, and West. For each test, record the video source assigned to each approach, computer specifications, operating system, Python and package versions, YOLO26n checkpoint, and GUI settings. For audio tests, also record the selected local video and its assigned approach.
+The simulation represents four approaches: North, East, South, and West. Record the video source assigned to each approach, computer and software specifications, YOLO26n checkpoint, and relevant GUI settings. For audio tests, also record the selected local video and its assigned approach. These details can be reported concisely in the text; a separate configuration table is unnecessary unless the final template or reviewer requires a consolidated parameter summary.
 
 ### 3.4.2 Heterogeneous Traffic and Green-Time Allocation
 
-Prepare low-, medium-, and high-demand scenarios with known vehicle counts and different class compositions. Calculate the expected approach scores manually using Table 3.1, then compare them with the scores displayed by ARGUS. Record the four green durations and verify that each is between 10 and 40 seconds and that their sum is 120 seconds. Include an all-zero-demand scenario to verify equal allocation.
+Test low-, medium-, and high-demand scenarios with different vehicle-class compositions. Calculate the expected approach scores using the operational weights in Table 3.1 and compare them with ARGUS outputs. Verify that each green duration is 10–40 seconds and that the four durations total 120 seconds. Include an all-zero-demand case to check equal allocation.
 
-### 3.4.3 Dual-Modal Emergency-Vehicle Verification
+### 3.4.3 Dual-Modal Emergency Verification
 
-Prepare positive and negative cases for ambulance, fire-engine, and police-vehicle detection. Include cases where both modalities indicate an emergency, only the visual modality exceeds its threshold, only the audio modality exceeds its threshold, and neither modality exceeds its threshold. Record the approach, visual confidence, audio emergency score, and verification decision. A positive decision requires both scores to be strictly greater than 0.65 on the same approach.
+Test ambulance, fire-engine, and police-vehicle cases under four conditions: both modalities exceed their thresholds; only the visual score exceeds its threshold; only the audio score exceeds its threshold; or neither does. Record the approach, both scores, and the verification decision. Confirmation requires both scores to be strictly greater than 0.65 on the same approach.
 
 ### 3.4.4 Signal Transition and Normal Rotation
 
-Record the phase sequence and duration during normal operation and after an emergency-priority request. In a normal rotation, the configured duration is 120 seconds of green allocation plus four yellow intervals of 3 seconds and four all-red intervals of 1 second:
+Record the signal-phase sequence and interval durations during normal operation and emergency-priority requests. The nominal normal rotation comprises 120 seconds of green time, four 3-second yellow intervals, and four 1-second all-red intervals:
 
-$$
-T_{\mathrm{rotasi}}=120+4(3)+4(1)=136\text{ seconds}
-$$
+$
+T_{\mathrm{rotation}}=120+4(3)+4(1)=136\text{ seconds}
+$
 
-The code also calculates an adjusted approach score for selecting among simultaneously confirmed emergency candidates:
+For simultaneous emergency candidates, the software ranks approaches using the adjusted score:
 
-$$
+$
 S_i=W_i+0.01\,t_i
-$$
+$
 
-where $$t_i$$ is the elapsed time since that approach last received green. This term is used in candidate ranking; it is not an algorithm that restores missed green time or proves that traffic queues return to equilibrium. Record the selected approach and verify that the yellow and all-red intervals are retained.
-
-### 3.4.5 Environmental Robustness
-
-If robustness is evaluated, test lighting variation, camera angle, partial occlusion, image quality, and audio background noise as separate conditions. Record the conditions and corresponding detection or classification outputs. Do not claim robustness for conditions that were not included in the test data.
+where $t_i$ is the elapsed time since approach $i$ last received green. This term affects candidate ranking only; it does not restore missed green time or demonstrate queue recovery. Verify that emergency requests retain the yellow and all-red clearance intervals.
 
 ## 3.5 Performance Metrics and System Evaluation
 
