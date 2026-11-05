@@ -749,6 +749,7 @@ class TrafficGUI(ctk.CTk):
         self._research_after_id = None
         self.research_sample_interval_ms = 1000
         self.research_last_emergency_state = {l: None for l in DAFTAR_LAJUR}
+        self.research_session_id = ""
 
         # Konfigurasi Master Grid Layout
         self.grid_columnconfigure(0, weight=0, minsize=360)  # Kolom Kontrol Kiri
@@ -1292,6 +1293,8 @@ class TrafficGUI(ctk.CTk):
     def toggle_research_recording(self):
         self.research_recording = not self.research_recording
         if self.research_recording:
+            if not self.research_records:
+                self.research_session_id = datetime.now().astimezone().isoformat(timespec="seconds")
             self.btn_research_record.configure(
                 text="Jeda Rekam", fg_color="#b7791f", hover_color="#946116"
             )
@@ -1357,6 +1360,7 @@ class TrafficGUI(ctk.CTk):
                 )
                 record = {
                     "timestamp": stamp,
+                    "recording_session_id": self.research_session_id,
                     "time": now.strftime("%H:%M:%S"),
                     "lane": lajur,
                     "data_source": (
@@ -1383,6 +1387,12 @@ class TrafficGUI(ctk.CTk):
                     "event_type": event_type,
                     "decision_reason": decision_reason,
                     "audio_score_method": "heuristic_siren_score",
+                    "model_file": os.path.basename(MODEL_PATH),
+                    "yolo_conf_threshold": CONF,
+                    "yolo_iou_threshold": IOU,
+                    "inference_image_size": IMGSZ,
+                    "roi_enabled": int(GUNAKAN_ROI),
+                    "sample_interval_ms": self.research_sample_interval_ms,
                 }
                 self.research_records.append(record)
                 self.research_tree.insert(
@@ -1412,6 +1422,8 @@ class TrafficGUI(ctk.CTk):
         ):
             return
         self.research_records.clear()
+        self.research_last_emergency_state = {l: None for l in DAFTAR_LAJUR}
+        self.research_session_id = ""
         for item in self.research_tree.get_children():
             self.research_tree.delete(item)
         self.lbl_research_status.configure(
@@ -1434,7 +1446,9 @@ class TrafficGUI(ctk.CTk):
         # Selaraskan kolom CSV dengan data snapshot dan tabel GUI, termasuk kolom waktu.
         # DictWriter menulis nilai kosong hanya jika sebuah kolom memang tidak ada di record.
         fields = [
-            "timestamp", "time", "lane", "data_source", *BOBOT_KENDARAAN.keys(),
+            "timestamp", "recording_session_id", "time", "lane", "data_source", *BOBOT_KENDARAAN.keys(),
+            "model_file", "yolo_conf_threshold", "yolo_iou_threshold",
+            "inference_image_size", "roi_enabled", "sample_interval_ms",
             "total_vehicles", "weighted_score", "signal_phase",
             "active_lane", "green_remaining_seconds", "mode",
             "visual_emergency_class", "visual_confidence", "visual_threshold",
@@ -1501,6 +1515,18 @@ class TrafficGUI(ctk.CTk):
                 "max_vehicles_per_snapshot": max(totals),
                 "mean_weighted_score": round(statistics.mean(scores), 3),
                 "max_weighted_score": round(max(scores), 3),
+                "visual_pass_samples": sum(int(r.get("visual_pass", 0)) for r in samples),
+                "audio_pass_samples": sum(int(r.get("audio_pass", 0)) for r in samples),
+                "audio_available_samples": sum(r.get("audio_siren_score", "") not in ("", None) for r in samples),
+                "and_confirmed_samples": sum(int(r.get("and_confirmed", 0)) for r in samples),
+                "preemption_active_samples": sum(int(r.get("preemption_active", 0)) for r in samples),
+                "emergency_state_changes": sum(r.get("event_type") == "STATE_CHANGE" for r in samples),
+                "mean_visual_confidence": round(statistics.mean(float(r.get("visual_confidence", 0.0)) for r in samples), 6),
+                "max_visual_confidence": round(max(float(r.get("visual_confidence", 0.0)) for r in samples), 6),
+                "mean_audio_siren_score": round(statistics.mean(
+                    float(r["audio_siren_score"]) for r in samples
+                    if r.get("audio_siren_score") not in ("", None)
+                ), 6) if any(r.get("audio_siren_score") not in ("", None) for r in samples) else "",
             }
             for jenis in BOBOT_KENDARAAN:
                 values = [int(r[jenis]) for r in samples]
