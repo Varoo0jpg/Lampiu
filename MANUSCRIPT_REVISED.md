@@ -206,11 +206,7 @@ W_i=sum_{c=1}^{8}N_{i,c}w_c
 
 where (N_{i,c}) is the detected count of vehicle class (c) on approach (i), and (w_c) is the corresponding operational weight. These weights are simulator parameters and should not be presented as universal PCU standards.
 
-**Table 3.2. Operational Vehicle-Class Weights Used by ARGUS**
-
-[Insert the eight-class operational-weight table using the exact values from the final controller code or project documentation. Do not infer missing values.]
-
-*Source: Final ARGUS controller configuration. Verify the class labels and weights against the code version used for the experiments.*
+The exact eight-class operational weights are listed in **Table D.1 in Appendix D**. They must be copied from the final controller configuration and should not be presented as universal PCU standards.
 
 The controller distributes a 120-second aggregate green-time budget among the four approaches, subject to a minimum of 10 seconds and a maximum of 40 seconds per approach. The allocation uses bounded weighted water-filling; when all approach scores are zero, green time is divided equally. Largest-remainder rounding is used to preserve the 120-second total. Each approach's transition includes three seconds of yellow and one second of all-red clearance.
 
@@ -255,7 +251,7 @@ The test environment represents four approaches: North, East, South, and West. R
 
 ### 3.4.2. Heterogeneous Traffic Density & PCU Weighting Protocol
 
-Prepare low-, medium-, and high-demand scenarios with known vehicle counts and different class compositions. Calculate the expected approach scores manually using Table 3.2, then compare them with the scores displayed by ARGUS. Record the four green durations and verify that each is between 10 and 40 seconds and that their sum is 120 seconds. Include an all-zero-demand scenario to verify equal allocation.
+Prepare low-, medium-, and high-demand scenarios with known vehicle counts and different class compositions. Calculate the expected approach scores manually using Table D.1, then compare them with the scores displayed by ARGUS. Record the four green durations and verify that each is between 10 and 40 seconds and that their sum is 120 seconds. Include an all-zero-demand scenario to verify equal allocation.
 
 ### 3.4.3. Dual-Modal Emergency Vehicle Preemption Protocol
 
@@ -297,7 +293,7 @@ where TP is true positive, FP is false positive, FN is false negative, AP is ave
 
 ### 3.5.2. Traffic Flow & Queue Reduction Metrics
 
-Compare ARGUS weighted scores with manually calculated scores from known vehicle counts and Table 3.2. For signal allocation, report each approach's green duration and verify the total allocation and per-approach limits:
+Compare ARGUS weighted scores with manually calculated scores from known vehicle counts and Table D.1. For signal allocation, report each approach's green duration and verify the total allocation and per-approach limits:
 
 \[
 \sum_{i=1}^{4}G_i=120\ \text{seconds}, \qquad 10\leq G_i\leq40
@@ -502,13 +498,13 @@ Kelebihan, kekurangan, dan keterbatasan Lampiu.
 
 ## Appendix D — Traffic Allocation and Signal Timing
 
-- **Table D.1. Operational Vehicle-Class Weights** — Refer to Table 3.2; do not reproduce the table if it is already complete in Section 3.3.1.3.
-- **Table D.2. Example Weighted-Demand Calculation** — [Insert a worked example based on verified vehicle counts and the weights in Table 3.2.]
+- **Table D.1. Operational Vehicle-Class Weights Used by ARGUS** — [Insert the exact eight class weights from the final controller code or project documentation. Do not infer missing values.]
+- **Table D.2. Example Weighted-Demand Calculation** — [Insert a worked example based on verified vehicle counts and the weights in Table D.1.]
 - **Table D.3. Example Green-Time Allocation** — [Insert a calculation or logged allocation supported by the experiment records.]
 - **Figure D.1. Signal Phase Sequence** — [Insert a diagram of green → yellow → all-red → next green, using the configured durations.]
 - **Table D.4. Signal Timing Test Records** — [Insert only if the corresponding logs are available.]
 
-*Source: ARGUS controller configuration and verified test logs.*
+*Source: Final ARGUS controller configuration and verified test logs. The weights are simulator parameters, not universal PCU standards.*
 
 ## Appendix E — Dataset and Threshold Audit
 
@@ -563,7 +559,7 @@ The original chapter order, section order, research questions, objectives, main 
 |---|---|---|
 | 3.2 | Placed Figure 3.1 (system architecture) in Section 3.2 and added the Input and Process descriptions; placed Figure 3.2 (dual-modal emergency-verification flowchart) after the process description | Follows the visual-placement guide and keeps the architecture and decision-flow diagrams in the system-design section |
 | 3.3 | Restored the implementation structure for YOLO26n detection, audio classification, weighted-demand/signal control, GUI/data logging, and module integration | Keeps implementation details with their corresponding modules without changing the Chapter 3 hierarchy |
-| Tables and figures | Renumbered Table 3.1 as experimental configuration, Table 3.2 as operational vehicle weights, combined YOLO26n metrics into Table 4.1, assigned Figure 4.1 to the normalized confusion matrix, and added conditional result/appendix placeholders | Aligns placement and numbering with the visual guide; no missing data or image contents were fabricated |
+| Tables and figures | Renumbered Table 3.1 as experimental configuration, Table D.1 as operational vehicle weights, combined YOLO26n metrics into Table 4.1, assigned Figure 4.1 to the normalized confusion matrix, and added conditional result/appendix placeholders | Aligns placement and numbering with the visual guide; no missing data or image contents were fabricated |
 | Abstract | Removed the statement that the manuscript has no completed experimental results; retained the original system description and clarified that it is a software simulation | The project has reported model-validation and software-timing results, but these do not establish field effectiveness |
 | 1.1 Background | Replaced “exceeded 3.5 million registered units in 2025” with the BPS figure of 3,328,178 for 2024, published in the 2025 yearbook | Corrects the year and figure |
 | 1.1 Background | Replaced claims that ARGUS computes spatial occupancy and uses MFCC with weighted-demand scoring and YAMNet plus Logistic Regression | Aligns the description with the implemented method |
@@ -588,7 +584,7 @@ The original chapter order, section order, research questions, objectives, main 
 3. Add the actual emergency-priority test results before completing Section 4.3.
 4. Add a defined and fully measured recovery result before completing Section 4.4.
 5. Complete Chapter 5 only after the final Chapter 4 results are settled.
-6. Verify all Table 3.1 configuration values and the exact eight operational weights in Table 3.2 against the final code and experiment logs.
+6. Verify all Table 3.1 configuration values and the exact eight operational weights in Table D.1 against the final code and experiment logs.
 7. Insert Figure 3.1 and Figure 3.2 only after confirming that both diagrams match the final implementation.
 8. Populate conditional Chapter 4 and appendix placeholders only when the corresponding original assets, logs, and evaluation data are available.
 
