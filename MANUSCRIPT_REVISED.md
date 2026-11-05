@@ -97,11 +97,11 @@ A study in motorcycle-dominated Banda Aceh traffic reported values of 0.24 for m
 
 The weighted approach score is:
 
-$$
+\[
 S_i = \sum_{c=1}^{C} n_{i,c}w_c
-$$
+\]
 
-where $$n_{i,c}$$ is the detected count of class $$c$$ on approach $$i$$, and $$w_c$$ is its assigned operational weight. This score estimates weighted demand; it does not directly measure queue length or density [3, 4].
+where \(n_{i,c}\) is the detected count of class \(c\) on approach \(i\), and \(w_c\) is its assigned operational weight. This score estimates weighted demand; it does not directly measure queue length or density [3, 4].
 
 ### 2.1.2. Computer Vision
 
@@ -117,21 +117,21 @@ Fixed-time control follows predetermined signal plans, whereas adaptive control 
 
 ARGUS allocates 120 seconds of green time across four approaches. Each receives at least 10 seconds, with a maximum of 40 seconds; the remaining time is distributed according to weighted approach scores using a water-filling procedure. Capped shares are redistributed, and zero-demand cases receive equal allocation:
 
-$$
+\[
 \sum_{i=1}^{4} G_i = 120\ \text{seconds}, \qquad 10 \leq G_i \leq 40
-$$
+\]
 
 Each approach is followed by 3 seconds of yellow and 1 second of all-red. Therefore, the nominal full normal rotation is:
 
-$$
+\[
 T_{\text{rotation}} = 120 + 4(3) + 4(1) = 136\ \text{seconds}
-$$
+\]
 
 Emergency priority is requested only when visual emergency confidence and the aggregate audio emergency score both exceed 0.65 on the same approach:
 
-$$
+\[
 C_{\text{visual}} > 0.65 \quad \land \quad C_{\text{audio, emergency}} > 0.65
-$$
+\]
 
 The thresholds are software settings, and the signal retains its yellow and all-red clearance intervals.
 
@@ -182,11 +182,11 @@ The visual detection module uses a trained YOLO26n model through the Ultralytics
 
 For traffic-load estimation, detected vehicle counts are multiplied by their operational class weights to calculate an approach-level weighted-demand score:
 
-$$
+\[
 W_i=\sum_{c=1}^{8}N_{i,c}w_c
-$$
+\]
 
-where $$N_{i,c}$$ is the detected count of vehicle class $$c$$ on approach $$i$$, and $$w_c$$ is its corresponding operational weight. These weights are simulator parameters rather than universal PCU standards; the exact values used by ARGUS should be reported in **Table D.1 in Appendix D**. The controller distributes a 120-second aggregate green-time budget among the four approaches, with a minimum of 10 seconds and a maximum of 40 seconds per approach. It uses bounded weighted allocation, divides the time equally when all approach scores are zero, and retains the configured three-second yellow and one-second all-red intervals. The CustomTkinter GUI presents the four video panels, detection statistics, audio-confidence values, signal states, and countdown timers. Separate execution threads handle camera processing and audio analysis to maintain interface responsiveness, while periodic system-state snapshots are exported in CSV format. These snapshots do not represent unique-vehicle counts or cross-camera vehicle tracking.
+where \(N_{i,c}\) is the detected count of vehicle class \(c\) on approach \(i\), and \(w_c\) is its corresponding operational weight. These weights are simulator parameters rather than universal PCU standards; the exact values used by ARGUS should be reported in **Table D.1 in Appendix D**. The controller distributes a 120-second aggregate green-time budget among the four approaches, with a minimum of 10 seconds and a maximum of 40 seconds per approach. It uses bounded weighted allocation, divides the time equally when all approach scores are zero, and retains the configured three-second yellow and one-second all-red intervals. The CustomTkinter GUI presents the four video panels, detection statistics, audio-confidence values, signal states, and countdown timers. Separate execution threads handle camera processing and audio analysis to maintain interface responsiveness, while periodic system-state snapshots are exported in CSV format. These snapshots do not represent unique-vehicle counts or cross-camera vehicle tracking.
 
 ### 3.3.2. Module Integration
 
@@ -251,21 +251,21 @@ If robustness is evaluated, test lighting variation, camera angle, partial occlu
 
 Evaluate YOLO26n using Precision, Recall, F1-score, and mean Average Precision (mAP). Determine true positives, false positives, and false negatives against labelled ground-truth annotations. The metrics are calculated as follows:
 
-$$
+\[
 \text{Precision} = \frac{TP}{TP+FP}
-$$
+\]
 
-$$
+\[
 \text{Recall} = \frac{TP}{TP+FN}
-$$
+\]
 
-$$
+\[
 F1 = 2\times\frac{\text{Precision}\times\text{Recall}}{\text{Precision}+\text{Recall}}
-$$
+\]
 
-$$
+\[
 mAP = \frac{1}{C}\sum_{c=1}^{C} AP_c
-$$
+\]
 
 where TP is true positive, FP is false positive, FN is false negative, AP is average precision for a class, and C is the number of evaluated classes. Report per-class results and state the IoU convention; where available, include mAP50 and mAP50–95. The IoU thresholds used to calculate each mAP variant must be stated.
 
@@ -273,9 +273,9 @@ where TP is true positive, FP is false positive, FN is false negative, AP is ave
 
 Compare ARGUS weighted scores with manually calculated scores from known vehicle counts and Table D.1. For signal allocation, report each approach's green duration and verify the total allocation and per-approach limits:
 
-$$
+\[
 \sum_{i=1}^{4}G_i=120\ \text{seconds}, \qquad 10\leq G_i\leq40
-$$
+\]
 
 where G_i is the green duration, in seconds, assigned to approach i. Queue length, average delay, throughput, and waiting-time improvement require a defined traffic-flow model or physical measurements and a baseline; they cannot be concluded from detection counts alone.
 
@@ -283,9 +283,9 @@ where G_i is the green duration, in seconds, assigned to approach i. Queue lengt
 
 Evaluate the dual-modal decision using a confusion matrix, Precision, Recall, F1-score, false-positive rate, and false-negative rate. Calculate Precision, Recall, and F1-score using the equations in Section 3.5.1. The additional error rates are:
 
-$$
+\[
 FPR=\frac{FP}{FP+TN}, \qquad FNR=\frac{FN}{FN+TP}
-$$
+\]
 
 where TN is true negative. Report the visual and audio scores separately and identify whether both thresholds were exceeded on the same approach. Define response time consistently, for example from the start of the relevant input segment to the verification decision.
 
@@ -293,9 +293,9 @@ where TN is true negative. Report the visual and audio scores separately and ide
 
 Measure the yellow and all-red durations and compare them with the configured values of 3 seconds and 1 second. The absolute duration deviation can be calculated as:
 
-$$
+\[
 E_t=|t_{\text{measured}}-t_{\text{configured}}|
-$$
+\]
 
 A zero deviation indicates that the measured interval matches its configured duration. Record the phase sequence during normal operation and emergency-priority requests. Any claim about recovery time, restored traffic equilibrium, or reduced delay requires a separate recovery definition and supporting measurements.
 
