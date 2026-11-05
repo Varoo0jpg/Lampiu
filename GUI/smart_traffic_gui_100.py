@@ -811,7 +811,7 @@ class TrafficGUI(ctk.CTk):
         # Jangan pernah menyisipkan video bawaan atau mengubah SUMBER_KAMERA Utara.
         with VIDEO_CONTROL["lock"]:
             VIDEO_CONTROL["lane"] = self.audio_video_lane or "Utara"
-            VIDEO_CONTROL["paused"] = False
+            VIDEO_CONTROL["paused"] = True
             VIDEO_CONTROL["muted"] = True
             VIDEO_CONTROL["position"] = 0.0
             VIDEO_CONTROL["seek_seconds"] = 0.0
@@ -833,7 +833,7 @@ class TrafficGUI(ctk.CTk):
                 audio_source_note += " | soundtrack hanya dari video lokal pertama"
             self.lbl_file_audio.configure(text=audio_source_note)
             self.lbl_hasil_audio_video.configure(
-                text="Menyiapkan audio video dan model klasifikasi...",
+                text="Video siap dalam keadaan jeda; analisis audio dimulai saat video diputar...",
                 text_color="#5dade2",
             )
         # Deteksi kamera dan audio dijalankan sebagai dua proses independen.
@@ -948,7 +948,7 @@ class TrafficGUI(ctk.CTk):
 
         # Nilai dimulai sebagai None. Persentase baru muncul setelah modul audio
         # mengirim hasil agar GUI tidak menampilkan angka confidence palsu.
-        self.audio_emergency_scores = {l: None for l in DAFTAR_LAJUR}
+        self.audio_emergency_scores = {l: 0.0 for l in DAFTAR_LAJUR}
         self.audio_score_method_by_lane = {l: "unavailable" for l in DAFTAR_LAJUR}
         self.audio_confidence_widgets = {}
         for lajur in DAFTAR_LAJUR:
@@ -973,7 +973,7 @@ class TrafficGUI(ctk.CTk):
 
             persen = ctk.CTkLabel(
                 baris,
-                text="--%",
+                text="0%",
                 width=38,
                 anchor="e",
                 font=("Arial", 10, "bold"),
@@ -1101,7 +1101,7 @@ class TrafficGUI(ctk.CTk):
 
     def toggle_video_pause(self):
         # Saat dijeda, samakan titik lanjut audio dengan posisi frame video
-        # terakhir, lalu hentikan perangkat audio tanpa menunggu jendela 3 detik selesai.
+        # terakhir, hentikan playback, dan nolkan skor agar prioritas darurat gugur.
         with VIDEO_CONTROL["lock"]:
             VIDEO_CONTROL["paused"] = not VIDEO_CONTROL["paused"]
             paused = VIDEO_CONTROL["paused"]
@@ -1110,8 +1110,32 @@ class TrafficGUI(ctk.CTk):
                 VIDEO_CONTROL["seek_serial"] += 1
         if paused:
             self._hentikan_audio_saat_video_dijeda()
+            self.nonaktifkan_prioritas_audio_video()
+            self.lbl_hasil_audio_video.configure(
+                text="Video dijeda | Skor audio seluruh lajur: 0.0%",
+                text_color="#aab7c4"
+            )
+        elif self.video_file_path:
+            self.lbl_hasil_audio_video.configure(
+                text="Video berjalan | Analisis audio real-time aktif",
+                text_color="#5dade2"
+            )
         if self.audio_playback_thread is None:
             self.mulai_audio_video_lokal()
+
+    def nonaktifkan_prioritas_audio_video(self):
+        """Nolkan skor audio dan batalkan preemption darurat yang hanya didukung audio video."""
+        self.perbarui_skor_audio_darurat({lajur: 0.0 for lajur in DAFTAR_LAJUR})
+        for lajur in DAFTAR_LAJUR:
+            self.audio_score_method_by_lane[lajur] = "video_paused"
+        if self.research_priority_lane is not None:
+            if (
+                not self.override_manual_aktif
+                and self.lajur_terpaksa == self.research_priority_lane
+            ):
+                self.lajur_terpaksa = None
+            self.research_priority_lane = None
+            self.research_last_preemption_candidate = None
 
     def _hentikan_audio_saat_video_dijeda(self):
         """Hentikan soundtrack seketika ketika kontrol video diubah ke Jeda."""
@@ -1702,7 +1726,7 @@ class TrafficGUI(ctk.CTk):
             with VIDEO_CONTROL["lock"]:
                 VIDEO_CONTROL["duration"] = duration
             self.after(0, lambda: self.lbl_hasil_audio_video.configure(
-                text="Video siap: audio diputar dan dianalisis per 3 detik",
+                text="Video siap dalam keadaan jeda; audio dianalisis per 3 detik saat diputar",
                 text_color="#5dade2"
             ))
             cursor = 0
@@ -1769,8 +1793,9 @@ class TrafficGUI(ctk.CTk):
                 )
             sd.stop()
             if not self.audio_playback_stop.is_set():
+                self.after(0, self.nonaktifkan_prioritas_audio_video)
                 self.after(0, lambda: self.lbl_hasil_audio_video.configure(
-                    text="Pemutaran video selesai; analisis audio berhenti", text_color="#aab7c4"
+                    text="Pemutaran video selesai | Skor audio: 0.0%", text_color="#aab7c4"
                 ))
         except Exception as exc:
             pesan = str(exc)
@@ -1783,6 +1808,11 @@ class TrafficGUI(ctk.CTk):
             self.audio_playback_thread = None
 
     def _hasil_audio_video(self, lajur, result, elapsed):
+        # Callback hasil yang tertunda tidak boleh menghidupkan kembali skor saat video dijeda.
+        with VIDEO_CONTROL["lock"]:
+            if VIDEO_CONTROL["paused"]:
+                self.nonaktifkan_prioritas_audio_video()
+                return
         probabilities = result["probabilities"]
         emergency = result["emergency_score"]
         predicted = result["predicted_class"]
@@ -2102,7 +2132,11 @@ class TrafficGUI(ctk.CTk):
         return self.alokasi_hijau_siklus[lajur_target]
 
     def emergency_dual_confirmed(self, lajur):
-        """Konfirmasi AND: confidence YOLO darurat dan skor audio harus sama-sama lolos."""
+        """Konfirmasi AND; audio video yang dijeda tidak boleh memicu prioritas."""
+        if self.video_file_path:
+            with VIDEO_CONTROL["lock"]:
+                if VIDEO_CONTROL["paused"]:
+                    return False
         visual = self.confidence_visual_darurat.get(lajur, 0.0) > AMBANG_VISUAL_DARURAT
         audio_value = self.audio_emergency_scores.get(lajur)
         audio = audio_value is not None and audio_value > AMBANG_AUDIO_DARURAT
