@@ -180,66 +180,30 @@ The GUI displays the four approach video panels, vehicle detections and class co
 
 ## 3.3 Software Implementation and Module Integration
 
-### 3.3.1 Software Implementation
+### 3.3.1. Software Implementation
 
-#### 3.3.1.1 YOLO26n-Based Vehicle Detection
+The visual detection module uses a trained YOLO26n model through the Ultralytics framework and OpenCV to identify eight vehicle classes: ambulance, bus, car, fire engine, military vehicle, motorcycle, police car, and truck. The recorded inference configuration uses a confidence threshold of 0.15, an NMS IoU threshold of 0.60, and a five-frame median filter to stabilize detection counts. The audio module processes three-second mono segments at 16 kHz, extracted from the soundtrack of a user-selected local video. Pretrained YAMNet generates 1,024-dimensional embeddings, which are classified by Logistic Regression into ambulance, firetruck, police, and traffic categories. The aggregate emergency score combines the three emergency categories.
 
-Vehicle detection is implemented with the Ultralytics YOLO interface and OpenCV using the trained YOLO26n checkpoint. The model is configured for eight classes: ambulance, bus, car, fire engine, military vehicle, motorcycle, police car, and truck. The initial inference settings are confidence threshold 0.15, NMS IoU threshold 0.60, and image size 640; inference is configured for the CPU. Frames are resized to 640 × 480 before inference. The GUI's initial configuration has ROI filtering disabled; when enabled, the ROI must be configured for the relevant camera view.
+For traffic-load estimation, detected vehicle counts are multiplied by their operational class weights to calculate an approach-level weighted-demand score:
 
-Detections inside the selected counting area are counted by class. The maximum confidence among detected emergency classes (ambulance, fire engine, and police car) is retained as the visual emergency score for that approach. Vehicle counts are smoothed using a five-frame median filter before being passed to the traffic-load module.
-
-#### 3.3.1.2 YAMNet-Based Audio Classification
-
-The audio classifier is implemented in GUI/audio_siren.py and uses pretrained YAMNet with the stored Logistic Regression estimator best_audio_classifier_v2.joblib. The soundtrack of the selected local video is decoded by GUI/video_audio.py as stereo PCM at 44.1 kHz. The GUI processes three-second segments, averages the stereo channels to mono, resamples the segment to 16 kHz, and passes it to YAMNet. The resulting 1,024-dimensional embeddings are averaged and classified into ambulance, firetruck, police, and traffic.
-
-The emergency audio score is calculated as:
-
-$$
-A_i=P(\text{ambulance})+P(\text{firetruck})+P(\text{police})
-$$
-
-The classifier scores are model outputs and are not claimed to be independently calibrated probabilities. The video playback can be muted while audio analysis continues. The analysed audio is associated with the approach assigned to the selected local video.
-
-#### 3.3.1.3 PCU-Based Traffic-Load Estimation and Signal Control
-
-The PCU categories in Table 2.1 provide the theoretical reference. ARGUS applies the following operational weights to its eight detector classes. These values are simulator parameters, not universal PCU standards.
-
-**Table 3.1. Operational vehicle weights used in ARGUS**
-
-| Detected vehicle class | Operational weight |
-|---|---:|
-| Ambulance | 1.00 |
-| Bus | 2.00 |
-| Car | 1.00 |
-| Fire engine | 2.00 |
-| Military vehicle | 2.00 |
-| Motorcycle | 0.33 |
-| Police car | 1.00 |
-| Truck | 2.00 |
-
-For each approach, the traffic score is calculated as:
-
-$$
+\[
 W_i=\sum_{c=1}^{8}N_{i,c}w_c
-$$
+\]
 
-The allocation begins with the minimum green time for each approach. The remaining time is distributed according to the active approach weights. If an approach reaches the maximum green time, it is capped and removed from the active distribution; the remaining allocation is then redistributed. If all active weights are zero, the remaining time is divided equally. Integer rounding uses the largest-remainder method so that the four green durations total exactly 120 seconds while remaining within the 10–40-second limits.
+where \(N_{i,c}\) is the detected count of vehicle class \(c\) on approach \(i\), and \(w_c\) is its corresponding operational weight. These weights are simulator parameters rather than universal PCU standards; the exact values used by ARGUS should be reported in **Table D.1 in Appendix D**. The controller distributes a 120-second aggregate green-time budget among the four approaches, with a minimum of 10 seconds and a maximum of 40 seconds per approach. It uses bounded weighted allocation, divides the time equally when all approach scores are zero, and retains the configured three-second yellow and one-second all-red intervals. The CustomTkinter GUI presents the four video panels, detection statistics, audio-confidence values, signal states, and countdown timers. Separate execution threads handle camera processing and audio analysis to maintain interface responsiveness, while periodic system-state snapshots are exported in CSV format. These snapshots do not represent unique-vehicle counts or cross-camera vehicle tracking.
 
-#### 3.3.1.4 Graphical User Interface and Research Data Logging
+### 3.3.2. Module Integration
 
-The GUI is developed using CustomTkinter and displays video feeds, vehicle counts, weighted traffic scores, audio scores, signal states, and countdown timers. It provides controls for video-source selection and simulation operation. During research recording, the system stores snapshots every second for each approach, including vehicle-class counts, total count, weighted score, signal phase, active approach, and data source. The records can be exported in CSV format and represent sampled system states rather than unique-vehicle tracking.
+The ARGUS modules are integrated through two primary processing pipelines: visual detection and audio classification. The visual pipeline processes camera feeds using YOLO26n to obtain vehicle classifications and counts, which are transferred to the traffic-load estimation module. Meanwhile, the audio pipeline processes video soundtracks using YAMNet and Logistic Regression to generate emergency-classification scores.
 
-### 3.3.2 Module Integration
+Both outputs are connected through a dual-modal verification mechanism. When visual and audio confidence scores exceed their respective 0.65 thresholds on the same approach, the system assigns emergency priority to that approach for the next eligible green-light phase. The transition maintains the yellow and all-red intervals before granting the next green signal. Otherwise, the simulation continues using traffic-load-based signal allocation. All processing results are displayed through the graphical interface, while separate execution threads handle camera processing and audio analysis to maintain interface responsiveness. Research data are recorded periodically and exported in CSV format. At the current development stage, ARGUS operates as a software-based traffic simulation and has not been connected to physical traffic-signal controllers.
 
-The visual pipeline supplies vehicle counts and visual emergency confidence for each approach. The traffic-load module applies the operational weights and calculates the four approach scores. Separately, the audio pipeline analyses the soundtrack of the selected local video and supplies the aggregate emergency audio score for its assigned approach.
+**Figure 3.3. Dual-Modal Emergency Verification Flowchart**
 
-The emergency-verification function confirms an approach only when both conditions are met:
+[Insert the dual-modal emergency-verification flowchart here. Show visual emergency-candidate detection, audio-score evaluation, same-approach matching, both threshold checks (>0.65), the confirmed/not-confirmed decision, and the request for priority at the next eligible green phase after yellow and all-red clearance. Do not include a manual-override branch unless it is confirmed in the final controller code.]
 
-$$
-V_i>0.65\quad\text{and}\quad A_i>0.65
-$$
+*Source: ARGUS emergency-verification logic. Verify every decision branch against the final implementation.*
 
-The confirmed approach is requested as the next green phase. Signal transitions follow the sequence green → yellow → all-red → green; emergency priority does not bypass the clearance intervals. The GUI and detection processes operate through separate processing threads so that video and audio processing do not block the interface. All signal operations remain within the software simulation.
 
 ## 3.4 Experimental Setup and Testing Scenarios
 
