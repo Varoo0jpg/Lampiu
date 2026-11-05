@@ -154,21 +154,11 @@ ARGUS is characterized by computer-vision-based vehicle detection using YOLO26n 
 
 ## 3.2. System Architecture and Algorithm Design
 
-### 3.2.1. Input
+**[Insert Figure 3.X — ARGUS System Architecture Diagram here.]**
 
-The system receives two types of input, namely visual and audio. Visual input originates from four camera sources representing the North, East, South, and West approaches. The system processes video using computer vision with the YOLO26n model to detect and classify eight vehicle types, including ambulances, fire engines, and police cars.
+The software architecture of the ARGUS system integrates its core processing modules within a Python-based environment. Vehicle detection is performed using a trained YOLO26n model through the Ultralytics framework and OpenCV, targeting eight vehicle classes: ambulance, bus, car, fire engine, military vehicle, motorcycle, police car, and truck, with a confidence threshold of 0.15 and an NMS IoU threshold of 0.60. A five-frame median filter is applied to stabilize detection counts against short-term fluctuations. Meanwhile, audio classification uses pretrained YAMNet embeddings combined with a Logistic Regression classifier. It processes three-second mono audio segments extracted from the soundtrack of a user-selected local video at a 16 kHz sampling rate. The resulting emergency scores are used for dual-modal verification.
 
-Audio input is taken from the soundtrack of a local video selected by the user through the GUI. The audio is converted to mono, sampled at 16 kHz, and divided into three-second segments. Pretrained YAMNet generates audio embeddings, which are classified using Logistic Regression. This replaces the original description of a separate MP3/librosa heuristic pipeline; the implemented audio path is not described as MFCC-based.
-
-The quality of both inputs affects the analysis. Visual detection depends on video quality and model performance, while audio classification depends on the selected video's soundtrack and the classifier output.
-
-### 3.2.2. Process
-
-In data processing, vehicle detections obtained through computer vision are used to determine the weighted traffic demand for each approach. This is performed by calculating the total detected vehicles according to their respective operational weights, which are then entered into the formula presented in Chapter 2. The resulting scores are used to determine the green-light duration for each approach within the configured allocation limits. In addition, visual detections and audio classification are used together to verify emergency vehicles so that the system can prioritize an approach when both modalities meet the configured conditions.
-
-### 3.2.3. Output
-
-The traffic-signal control interface is designed to help operators monitor traffic conditions and observe the adaptive signal simulation. The interface consists of several sections, including camera panels displaying the four approaches—North, East, South, and West—along with vehicle-detection results; vehicle information showing detected counts by category; and traffic-signal control panels displaying red, yellow, and green states with their durations. In addition, the interface provides simulation controls and an Audio Confidence panel displaying audio-classification scores, such as ambulance, firetruck, police, and traffic. The interface is used to monitor vehicle-detection results and the simulated signal allocation based on weighted vehicle demand. At the current development stage, physical traffic-light control through IoT devices is not integrated into the system.
+Traffic-load estimation maps detected vehicle counts to operational class weights to calculate a cumulative weighted-demand score for each approach. These scores determine green-time allocation within a 120-second aggregate green-time budget, with each approach receiving 10–40 seconds or an equal share under zero demand. Signal transitions include a three-second yellow interval and a one-second all-red clearance phase. Emergency priority is requested when visual detection confidence and the aggregate audio emergency score both exceed 0.65 on the same approach. The CustomTkinter GUI displays video feeds, detection statistics, signal phases, countdown timers, and audio-confidence metrics, while supporting CSV snapshot exports for quantitative evaluation. Separate execution threads handle camera processing and audio analysis to maintain interface responsiveness. ARGUS currently operates as a software-based simulation and is not connected to physical traffic-signal controllers.
 
 ## 3.3. Software Implementation and Module Integration
 
@@ -193,14 +183,6 @@ Signal transitions consist of green, yellow (3 seconds), and all-red (1 second) 
 The graphical user interface is developed using CustomTkinter to display camera feeds, vehicle counts, traffic-signal states, countdown timers, and audio-confidence scores. The interface includes an Auto/Manual selector and controls for the simulation. **The presence of the selector in the GUI should not be interpreted as proof of two independently implemented controller modes: the current controller logic does not consume the mode variable.** The GUI also displays vehicle-detection sensitivity settings and approach information where available.
 
 The research data-logging module records traffic conditions, including vehicle classifications, weighted traffic scores, signal phases, and active approaches. Recorded data can be exported for further analysis. Detailed CSV contents are outside the scope of this manuscript audit except where they support the GUI's operational functions.
-
-### 3.3.2. Module Integration
-
-The ARGUS modules are integrated through two primary processing pipelines: visual detection and audio classification. The visual pipeline processes camera feeds using YOLO26n to obtain vehicle classifications and counts, which are subsequently transferred to the traffic-load estimation module. Meanwhile, the audio pipeline processes the soundtrack of a user-selected local video using YAMNet and Logistic Regression to generate emergency-classification scores.
-
-Both outputs are connected through a dual-modal verification mechanism. When visual and audio confidence scores exceed their respective thresholds on the same approach, the system assigns emergency priority to that approach for the next green-light phase. The transition maintains the yellow and all-red intervals before granting the next green signal. Otherwise, the simulation continues using traffic-load-based signal allocation.
-
-All processing results are displayed through the graphical interface, while separate execution threads handle camera processing and audio analysis to maintain interface responsiveness. At the current development stage, ARGUS operates as a software-based traffic simulation and has not yet been connected to physical traffic-signal controllers.
 
 ## 3.4. Experimental Setup and Testing Scenarios
 
@@ -422,7 +404,7 @@ The original chapter order, section order, research questions, objectives, main 
 
 | Original location | Change made | Reason |
 |---|---|---|
-| Abstract | Removed the statement that the manuscript has no completed experimental results; retained the original system description and clarified that it is a software simulation | The project has reported model-validation and software-timing results, but these do not establish field effectiveness |
+| 3.2 and 3.3.2 | Consolidated the architecture explanation into one Section 3.2 with an architecture-diagram placeholder and two paragraphs; removed the repetitive Module Integration subsection and retained its distinct thread-processing detail in Section 3.2 | Reduces repetition while preserving the processing pipelines, dual-modal verification, GUI, CSV logging, and software-simulation limitation |\n| Abstract | Removed the statement that the manuscript has no completed experimental results; retained the original system description and clarified that it is a software simulation | The project has reported model-validation and software-timing results, but these do not establish field effectiveness |
 | 1.1 Background | Replaced “exceeded 3.5 million registered units in 2025” with the BPS figure of 3,328,178 for 2024, published in the 2025 yearbook | Corrects the year and figure |
 | 1.1 Background | Replaced claims that ARGUS computes spatial occupancy and uses MFCC with weighted-demand scoring and YAMNet plus Logistic Regression | Aligns the description with the implemented method |
 | 1.1 Background and 1.4.2 | Removed unsupported claims of a Green Wave corridor, drastic delay reduction, and measured throughput improvement | The implementation is a four-approach software simulation, not coordinated multi-intersection control |
